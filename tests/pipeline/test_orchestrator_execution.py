@@ -1,4 +1,5 @@
 from unittest.mock import MagicMock, patch
+import pytest
 from langchain_core.messages import SystemMessage, HumanMessage
 from pipeline.orchestrator import run_orchestrator
 
@@ -45,3 +46,22 @@ def test_run_orchestrator(mock_retrieve_context):
     assert "Freely justified" in messages[0].content
     assert "δικαιοῦσθαι" in messages[0].content
     assert messages[1].content == "How are we justified?"
+
+
+@patch("pipeline.orchestrator.retrieve_context")
+def test_run_orchestrator_exception(mock_retrieve_context):
+    """Verify that exceptions raised during orchestrator run are logged and re-raised."""
+    mock_chroma = MagicMock()
+    mock_db = MagicMock()
+    mock_llm = MagicMock()
+    mock_embed_model = MagicMock()
+    
+    mock_retrieve_context.return_value = {
+        "confessional": [],
+        "scripture": {}
+    }
+    
+    mock_llm.invoke.side_effect = Exception("LLM connection timed out")
+    
+    with pytest.raises(Exception, match="LLM connection timed out"):
+        run_orchestrator(mock_chroma, mock_db, mock_llm, "Query", mock_embed_model)
