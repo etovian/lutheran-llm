@@ -112,8 +112,8 @@ def format_context(retrieved_ctx: dict) -> str:
         for lex in lexicon:
             lines.append(
                 f"- Word: {lex.get('word_text')}, Lemma: {lex.get('lemma')}, "
-                f"Strongs: {lex.get('strongs_number')}, Pronunciation: {lex.get('pronunciation')}, "
-                f"Definition: {lex.get('definition')}, Derivation: {lex.get('derivation')}"
+                f"Strongs: {lex.get('strongs_number')}, "
+                f"Definition: {lex.get('definition')}"
             )
     else:
         lines.append("No lexicon analysis found.")

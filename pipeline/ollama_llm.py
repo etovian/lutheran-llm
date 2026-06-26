@@ -32,7 +32,7 @@ class OllamaChatModel:
                     "messages": formatted_messages,
                     "stream": False
                 },
-                timeout=90
+                timeout=300
             )
             response.raise_for_status()
             res_json = response.json()
