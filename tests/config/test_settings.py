@@ -32,7 +32,7 @@ def test_settings_default_values(monkeypatch):
     monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
     
     settings = Settings()
-    assert settings.database_url == "postgresql://postgres:postgres@localhost:5432/lutheran_db"
+    assert settings.database_url == "postgresql+psycopg://user:password@localhost:5432/lutheran_db"
     assert settings.primary_search_version == "WEB"
     assert settings.chroma_db_path == "./.chroma"
     assert settings.ollama_model == "llama3"

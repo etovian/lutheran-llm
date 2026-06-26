@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     Settings class to manage application configuration.
     Loads configurations from environment variables or a local .env file.
     """
-    database_url: str = "postgresql://postgres:postgres@localhost:5432/lutheran_db"
+    database_url: str = "postgresql+psycopg://user:password@localhost:5432/lutheran_db"
     primary_search_version: Literal["WEB", "KJV", "MKJV"] = "WEB"
     chroma_db_path: str = "./.chroma"
     ollama_model: str = "llama3"
