@@ -1,8 +1,13 @@
+from typing import Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
+    """
+    Settings class to manage application configuration.
+    Loads configurations from environment variables or a local .env file.
+    """
     database_url: str = "postgresql://postgres:postgres@localhost:5432/lutheran_db"
-    primary_search_version: str = "WEB"
+    primary_search_version: Literal["WEB", "KJV", "MKJV"] = "WEB"
     chroma_db_path: str = "./.chroma"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
