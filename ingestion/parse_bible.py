@@ -1,4 +1,5 @@
 import re
+import string
 
 def parse_original_word_tokens(raw_verse_text: str, verse_id: int) -> list[dict]:
     """
@@ -19,11 +20,13 @@ def parse_original_word_tokens(raw_verse_text: str, verse_id: int) -> list[dict]
         word_text = match.group(1)
         strongs_num = match.group(2)
         
+        cleaned_word = word_text.strip(string.punctuation + ".,;:·[]()")
+        
         tokens.append({
             "verse_id": verse_id,
             "word_index": idx,
-            "word_text": word_text,
-            "lemma": word_text,
+            "word_text": cleaned_word,
+            "lemma": cleaned_word,
             "strongs_number": strongs_num
         })
         
