@@ -8,7 +8,11 @@ import pytest
 @patch("ui.app.load_db_engine")
 @patch("ui.app.load_chroma_client")
 @patch("ui.app.load_embedding_model")
+@patch("ui.app.start_ollama_server")
+@patch("ui.app.check_ollama_running")
 def test_streamlit_app_initialization(
+    mock_check_ollama,
+    mock_start_ollama,
     mock_load_embed,
     mock_load_chroma,
     mock_load_db,

@@ -46,3 +46,39 @@ def test_ollama_chat_model_invoke_failure(mock_post):
     model = OllamaChatModel()
     with pytest.raises(RuntimeError, match="Ollama invocation failed: Connection refused"):
         model.invoke([HumanMessage(content="Hello")])
+
+
+@patch("os.path.isfile")
+@patch("os.environ.get")
+def test_get_ollama_executable_path(mock_env, mock_isfile):
+    mock_env.return_value = "C:\\Users\\Test"
+    mock_isfile.return_value = True
+    
+    from pipeline.ollama_llm import get_ollama_executable_path
+    assert get_ollama_executable_path() == "C:\\Users\\Test\\Programs\\Ollama\\ollama.exe"
+
+
+@patch("requests.get")
+@patch("subprocess.Popen")
+def test_start_ollama_server_already_running(mock_popen, mock_get):
+    mock_res = MagicMock()
+    mock_res.status_code = 200
+    mock_get.return_value = mock_res
+    
+    from pipeline.ollama_llm import start_ollama_server
+    assert start_ollama_server() is True
+    mock_popen.assert_not_called()
+
+
+@patch("requests.get")
+@patch("requests.post")
+def test_ensure_model_loaded_success(mock_post, mock_get):
+    mock_res = MagicMock()
+    mock_res.json.return_value = {"models": [{"name": "llama3:latest"}]}
+    mock_get.return_value = mock_res
+    
+    from pipeline.ollama_llm import ensure_model_loaded
+    success, msg = ensure_model_loaded(model_name="llama3")
+    assert success is True
+    assert "ready" in msg
+    mock_post.assert_not_called()

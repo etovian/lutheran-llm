@@ -130,6 +130,11 @@ db_engine = load_db_engine(settings)
 chroma_client = load_chroma_client(settings)
 embed_model = load_embedding_model()
 
+from pipeline.ollama_llm import start_ollama_server, ensure_model_loaded
+
+# Trigger automatic server start on load
+start_ollama_server(settings.ollama_base_url)
+
 def check_ollama_running(url):
     import requests
     try:
@@ -160,13 +165,41 @@ chroma_ok = chroma_client is not None
 embed_ok = embed_model is not None
 ollama_ok = check_ollama_running(settings.ollama_base_url)
 
+# Model verification check
+model_ready = False
+model_msg = ""
+if ollama_ok:
+    try:
+        import requests
+        res = requests.get(f"{settings.ollama_base_url}/api/tags", timeout=1)
+        if res.status_code == 200:
+            models = res.json().get("models", [])
+            model_names = [m.get("name") for m in models]
+            model_base_names = [name.split(":")[0] for name in model_names if name]
+            if settings.ollama_model in model_names or settings.ollama_model in model_base_names:
+                model_ready = True
+    except Exception as e:
+        model_msg = str(e)
+
 st.sidebar.subheader("System Status")
 st.sidebar.markdown(f"Database: <span class='status-indicator {'status-ok' if db_ok else 'status-err'}'>{'Connected' if db_ok else 'Disconnected'}</span>", unsafe_allow_html=True)
 st.sidebar.markdown(f"ChromaDB: <span class='status-indicator {'status-ok' if chroma_ok else 'status-err'}'>{'Connected' if chroma_ok else 'Disconnected'}</span>", unsafe_allow_html=True)
 st.sidebar.markdown(f"Embedding Model: <span class='status-indicator {'status-ok' if embed_ok else 'status-err'}'>{'Loaded' if embed_ok else 'Failed'}</span>", unsafe_allow_html=True)
-st.sidebar.markdown(f"Ollama LLM: <span class='status-indicator {'status-ok' if ollama_ok else 'status-err'}'>{'Connected' if ollama_ok else 'Simulated Mode'}</span>", unsafe_allow_html=True)
 
-if not ollama_ok:
+if ollama_ok:
+    st.sidebar.markdown(f"Ollama LLM: <span class='status-indicator status-ok'>Connected</span>", unsafe_allow_html=True)
+    if not model_ready:
+        st.sidebar.warning(f"⚠️ Model '{settings.ollama_model}' is not installed locally.")
+        if st.sidebar.button("📥 Download Llama 3 Model (4.7 GB)"):
+            with st.spinner("Downloading Llama 3 (this may take several minutes)..."):
+                success, msg = ensure_model_loaded(settings.ollama_base_url, settings.ollama_model)
+                if success:
+                    st.sidebar.success("Model downloaded successfully!")
+                    st.rerun()
+                else:
+                    st.sidebar.error(f"Download failed: {msg}")
+else:
+    st.sidebar.markdown(f"Ollama LLM: <span class='status-indicator status-err'>Simulated Mode</span>", unsafe_allow_html=True)
     st.sidebar.warning("⚠️ Local Ollama is offline. The assistant is running in Simulated Mode (RAG context retrieval is fully active, but responses are simulated).")
     st.sidebar.markdown(
         """

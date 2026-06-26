@@ -116,3 +116,96 @@ class SimulatedChatModel:
         depth.append("</details>")
         
         return AIMessage(content=f"{summary}\n\n" + "\n".join(depth))
+
+
+import os
+import subprocess
+import time
+import logging
+
+logger = logging.getLogger(__name__)
+
+def get_ollama_executable_path() -> str:
+    """Resolve the absolute path of the Ollama executable on Windows or fallback to command."""
+    local_appdata = os.environ.get("LOCALAPPDATA")
+    if local_appdata:
+        default_path = os.path.join(local_appdata, "Programs", "Ollama", "ollama.exe")
+        if os.path.isfile(default_path):
+            return default_path
+    return "ollama"
+
+def start_ollama_server(base_url: str = "http://localhost:11434") -> bool:
+    """
+    Check if Ollama server is running. If not, start it in the background.
+    Returns True if running (or successfully started), False otherwise.
+    """
+    try:
+        res = requests.get(base_url, timeout=0.5)
+        if res.status_code == 200:
+            logger.info("Ollama server is already running.")
+            return True
+    except Exception:
+        pass
+
+    executable = get_ollama_executable_path()
+    logger.info(f"Starting Ollama server using executable: {executable}")
+    
+    try:
+        creationflags = 0
+        if os.name == "nt":
+            creationflags = 0x08000000 # CREATE_NO_WINDOW
+            
+        subprocess.Popen(
+            [executable, "serve"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=creationflags,
+            close_fds=True
+        )
+        
+        # Poll server until it responds (up to 10 seconds)
+        for _ in range(20):
+            time.sleep(0.5)
+            try:
+                res = requests.get(base_url, timeout=0.5)
+                if res.status_code == 200:
+                    logger.info("Ollama server started successfully.")
+                    return True
+            except Exception:
+                pass
+        logger.error("Ollama server process triggered but did not respond on port 11434.")
+        return False
+    except Exception as e:
+        logger.error(f"Failed to start Ollama server process: {e}")
+        return False
+
+def ensure_model_loaded(base_url: str = "http://localhost:11434", model_name: str = "llama3") -> tuple[bool, str]:
+    """
+    Query Ollama server to verify if model_name is present.
+    If missing, trigger a pull request.
+    Returns (success_status, status_message).
+    """
+    try:
+        res = requests.get(f"{base_url}/api/tags", timeout=2)
+        res.raise_for_status()
+        models = res.json().get("models", [])
+        
+        model_names = [m.get("name") for m in models]
+        model_base_names = [name.split(":")[0] for name in model_names if name]
+        
+        if model_name in model_names or model_name in model_base_names:
+            return True, f"Model '{model_name}' is already loaded and ready."
+            
+        logger.info(f"Model '{model_name}' is missing. Initiating pull request...")
+        pull_res = requests.post(
+            f"{base_url}/api/pull",
+            json={"name": model_name, "stream": False},
+            timeout=600 # 10 minutes timeout for model download
+        )
+        pull_res.raise_for_status()
+        logger.info(f"Successfully pulled model '{model_name}'.")
+        return True, f"Successfully pulled model '{model_name}'."
+    except Exception as e:
+        logger.error(f"Failed to verify or pull model '{model_name}': {e}")
+        return False, str(e)
