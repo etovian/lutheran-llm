@@ -1,5 +1,7 @@
 import logging
 from database.queries import fetch_parallel_verses_and_lexicon
+from langchain_core.messages import SystemMessage, HumanMessage
+from pipeline.prompt import SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
 
@@ -67,3 +69,88 @@ def retrieve_context(
         "confessional": confessional_chunks,
         "scripture": scripture_ctx
     }
+
+
+def format_context(retrieved_ctx: dict) -> str:
+    """
+    Format retrieved confessional chunks and scripture context into a structured string.
+    
+    Args:
+        retrieved_ctx (dict): The dictionary containing retrieved context.
+        
+    Returns:
+        str: Formatted context string.
+    """
+    lines = []
+    
+    # Confessional chunks
+    lines.append("--- CONFESSIONAL CONTEXT ---")
+    confessional_chunks = retrieved_ctx.get("confessional", [])
+    if confessional_chunks:
+        for chunk in confessional_chunks:
+            lines.append(f"Source: {chunk.get('citation')}")
+            lines.append(f"Content: {chunk.get('text')}\n")
+    else:
+        lines.append("No confessional context found.\n")
+        
+    # Scripture Context
+    lines.append("--- SCRIPTURE CONTEXT ---")
+    scripture = retrieved_ctx.get("scripture", {})
+    translations = scripture.get("translations", {})
+    if translations:
+        for ver, text_val in translations.items():
+            lines.append(f"[{ver}]: {text_val}")
+        lines.append("")
+    else:
+        lines.append("No parallel scripture translations found.")
+        
+    # Lexicon
+    lexicon = scripture.get("lexicon", [])
+    if lexicon:
+        lines.append("Original language word analysis:")
+        for lex in lexicon:
+            lines.append(
+                f"- Word: {lex.get('word_text')}, Lemma: {lex.get('lemma')}, "
+                f"Strongs: {lex.get('strongs_number')}, Pronunciation: {lex.get('pronunciation')}, "
+                f"Definition: {lex.get('definition')}, Derivation: {lex.get('derivation')}"
+            )
+    else:
+        lines.append("No lexicon analysis found.")
+        
+    return "\n".join(lines)
+
+
+def run_orchestrator(chroma_client, db_engine, llm, query: str, embed_model) -> str:
+    """
+    Execute the RAG retrieval, context formatting, and LLM orchestration loop.
+    
+    Args:
+        chroma_client: Chroma client instance.
+        db_engine: SQLAlchemy database engine instance.
+        llm: Language model client instance.
+        query (str): The user query.
+        embed_model: Embedding model instance.
+        
+    Returns:
+        str: Synthesized response from the LLM.
+    """
+    try:
+        retrieved_ctx = retrieve_context(chroma_client, db_engine, query, embed_model)
+        formatted_ctx = format_context(retrieved_ctx)
+        
+        system_prompt = SYSTEM_PROMPT.format(context=formatted_ctx)
+        
+        messages = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=query)
+        ]
+        
+        response = llm.invoke(messages)
+        if hasattr(response, "content"):
+            return response.content
+        return str(response)
+        
+    except Exception as e:
+        logger.error("Failed to run orchestrator execution loop: %s", e, exc_info=True)
+        raise
+
