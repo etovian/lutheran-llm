@@ -130,6 +130,14 @@ db_engine = load_db_engine(settings)
 chroma_client = load_chroma_client(settings)
 embed_model = load_embedding_model()
 
+def check_ollama_running(url):
+    import requests
+    try:
+        res = requests.get(url, timeout=0.5)
+        return res.status_code == 200
+    except Exception:
+        return False
+
 # Header Section
 st.markdown('<div class="main-title">Lutheran Confessional Assistant</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Faithful theological guidance grounded in Scripture and the Book of Concord</div>', unsafe_allow_html=True)
@@ -150,11 +158,26 @@ if selected_version != settings.primary_search_version:
 db_ok = db_engine is not None
 chroma_ok = chroma_client is not None
 embed_ok = embed_model is not None
+ollama_ok = check_ollama_running(settings.ollama_base_url)
 
 st.sidebar.subheader("System Status")
 st.sidebar.markdown(f"Database: <span class='status-indicator {'status-ok' if db_ok else 'status-err'}'>{'Connected' if db_ok else 'Disconnected'}</span>", unsafe_allow_html=True)
 st.sidebar.markdown(f"ChromaDB: <span class='status-indicator {'status-ok' if chroma_ok else 'status-err'}'>{'Connected' if chroma_ok else 'Disconnected'}</span>", unsafe_allow_html=True)
 st.sidebar.markdown(f"Embedding Model: <span class='status-indicator {'status-ok' if embed_ok else 'status-err'}'>{'Loaded' if embed_ok else 'Failed'}</span>", unsafe_allow_html=True)
+st.sidebar.markdown(f"Ollama LLM: <span class='status-indicator {'status-ok' if ollama_ok else 'status-err'}'>{'Connected' if ollama_ok else 'Simulated Mode'}</span>", unsafe_allow_html=True)
+
+if not ollama_ok:
+    st.sidebar.warning("⚠️ Local Ollama is offline. The assistant is running in Simulated Mode (RAG context retrieval is fully active, but responses are simulated).")
+    st.sidebar.markdown(
+        """
+        **To run local inference:**
+        1. Download [Ollama](https://ollama.com).
+        2. Run the model in your terminal:
+           ```bash
+           ollama run llama3
+           ```
+        """
+    )
 
 st.sidebar.subheader("Configuration")
 st.sidebar.write(f"**Ollama Model:** `{settings.ollama_model}`")
@@ -190,8 +213,12 @@ if query:
         else:
             with st.spinner("Searching scriptural and confessional context..."):
                 try:
-                    # Instantiate local LLM client
-                    llm = OllamaChatModel(model_name=settings.ollama_model, base_url=settings.ollama_base_url)
+                    # Choose LLM client based on status
+                    if ollama_ok:
+                        llm = OllamaChatModel(model_name=settings.ollama_model, base_url=settings.ollama_base_url)
+                    else:
+                        from pipeline.ollama_llm import SimulatedChatModel
+                        llm = SimulatedChatModel()
                     
                     response = run_orchestrator(
                         chroma_client=chroma_client,
