@@ -1,4 +1,6 @@
 from unittest.mock import MagicMock
+import pytest
+from sqlalchemy.exc import OperationalError
 from database.queries import fetch_parallel_verses_and_lexicon
 
 def test_fetch_parallel_verses_and_lexicon():
@@ -41,3 +43,30 @@ def test_fetch_parallel_verses_and_lexicon():
     assert res["lexicon"][0]["lemma"] == "λογίζομαι"
     assert res["lexicon"][0]["strongs_number"] == "G3049"
     assert res["lexicon"][0]["definition"] == "to reckon, calculate"
+
+
+def test_fetch_parallel_verses_and_lexicon_empty():
+    """Verify that a non-existent verse_id returns empty translations and lexicon lists."""
+    mock_engine = MagicMock()
+    mock_connection = mock_engine.connect.return_value.__enter__.return_value
+    
+    mock_result_tx = MagicMock()
+    mock_result_tx.mappings.return_value.all.return_value = []
+    
+    mock_result_lex = MagicMock()
+    mock_result_lex.mappings.return_value.all.return_value = []
+    
+    mock_connection.execute.side_effect = [mock_result_tx, mock_result_lex]
+    
+    res = fetch_parallel_verses_and_lexicon(mock_engine, verse_id=9999)
+    assert res == {"translations": {}, "lexicon": []}
+
+
+def test_fetch_parallel_verses_and_lexicon_exception():
+    """Verify that database errors are logged and re-raised."""
+    mock_engine = MagicMock()
+    mock_connection = mock_engine.connect.return_value.__enter__.return_value
+    mock_connection.execute.side_effect = OperationalError("SELECT", {}, Exception("DB failure"))
+    
+    with pytest.raises(OperationalError):
+        fetch_parallel_verses_and_lexicon(mock_engine, verse_id=1)
