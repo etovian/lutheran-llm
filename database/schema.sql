@@ -38,3 +38,4 @@ CREATE TABLE IF NOT EXISTS original_word (
 
 CREATE INDEX IF NOT EXISTS idx_verse_book ON verse(book_id);
 CREATE INDEX IF NOT EXISTS idx_original_word_verse ON original_word(verse_id);
+CREATE INDEX IF NOT EXISTS idx_original_word_strongs ON original_word(strongs_number);

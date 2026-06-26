@@ -1,10 +1,13 @@
+import logging
 from sqlalchemy import create_engine, text
 from config.settings import Settings
 
-settings = Settings()
+logger = logging.getLogger(__name__)
 
-def get_engine():
+def get_engine(settings=None):
     """Create and return a SQLAlchemy engine from database URL settings."""
+    if settings is None:
+        settings = Settings()
     return create_engine(settings.database_url)
 
 def check_connection(engine):
@@ -16,5 +19,6 @@ def check_connection(engine):
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
             return True
-    except Exception:
+    except Exception as e:
+        logger.error("Database connection check failed: %s", e, exc_info=True)
         return False
