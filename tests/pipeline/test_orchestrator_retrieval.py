@@ -1,4 +1,5 @@
 from unittest.mock import MagicMock
+import pytest
 from pipeline.orchestrator import retrieve_context
 
 def test_retrieve_context():
@@ -53,3 +54,72 @@ def test_retrieve_context():
     assert ctx["scripture"]["translations"]["WEB"] == "We maintain that a man is justified..."
     assert ctx["scripture"]["translations"]["KJV"] == "Therefore we conclude..."
     assert ctx["scripture"]["lexicon"][0]["word_text"] == "λογιζόμεθα"
+
+
+def test_retrieve_context_empty():
+    """Verify that when ChromaDB returns no results, retrieve_context handles it and returns empty values."""
+    mock_chroma = MagicMock()
+    mock_db = MagicMock()
+    mock_embed_model = MagicMock()
+    mock_embed_model.encode.return_value.tolist.return_value = [0.1, 0.2, 0.3]
+    
+    mock_collection = MagicMock()
+    mock_collection.query.return_value = {
+        "documents": [[]],
+        "metadatas": [[]]
+    }
+    mock_chroma.get_collection.return_value = mock_collection
+    
+    ctx = retrieve_context(
+        chroma_client=mock_chroma,
+        db_engine=mock_db,
+        query="justified",
+        embed_model=mock_embed_model,
+        db_lookup_func=lambda eng, vid: {}
+    )
+    assert ctx == {"confessional": [], "scripture": {}}
+
+
+def test_retrieve_context_missing_verse_id():
+    """Verify that a missing 'verse_id' in scripture metadata bypasses database lookup."""
+    mock_chroma = MagicMock()
+    mock_db = MagicMock()
+    mock_embed_model = MagicMock()
+    mock_embed_model.encode.return_value.tolist.return_value = [0.1, 0.2, 0.3]
+    
+    mock_conf_collection = MagicMock()
+    mock_conf_collection.query.return_value = {"documents": [[]], "metadatas": [[]]}
+    
+    mock_bib_collection = MagicMock()
+    mock_bib_collection.query.return_value = {"documents": [[]], "metadatas": [[{"address_code": "ROM_3_28"}]]}
+    
+    mock_chroma.get_collection.side_effect = lambda name: (
+        mock_conf_collection if name == "confessional_collection" else mock_bib_collection
+    )
+    
+    db_called = False
+    def mock_db_lookup(eng, vid):
+        nonlocal db_called
+        db_called = True
+        return {}
+        
+    ctx = retrieve_context(
+        chroma_client=mock_chroma,
+        db_engine=mock_db,
+        query="justified",
+        embed_model=mock_embed_model,
+        db_lookup_func=mock_db_lookup
+    )
+    assert db_called is False
+    assert ctx["scripture"] == {}
+
+
+def test_retrieve_context_exception():
+    """Verify that exceptions raised in retrieval are logged and re-raised."""
+    mock_chroma = MagicMock()
+    mock_db = MagicMock()
+    mock_embed_model = MagicMock()
+    mock_embed_model.encode.side_effect = Exception("Embedding model crash")
+    
+    with pytest.raises(Exception, match="Embedding model crash"):
+        retrieve_context(mock_chroma, mock_db, "justified", mock_embed_model)

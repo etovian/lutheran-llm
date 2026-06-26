@@ -3,7 +3,15 @@ from database.queries import fetch_parallel_verses_and_lexicon
 
 logger = logging.getLogger(__name__)
 
-def retrieve_context(chroma_client, db_engine, query: str, embed_model, db_lookup_func=None) -> dict:
+def retrieve_context(
+    chroma_client, 
+    db_engine, 
+    query: str, 
+    embed_model, 
+    confessional_k: int = 1, 
+    biblical_k: int = 1, 
+    db_lookup_func=None
+) -> dict:
     """
     Retrieve semantic context from ChromaDB collections and fetch parallel bible verses
     and lexicon definitions from the relational database.
@@ -13,6 +21,8 @@ def retrieve_context(chroma_client, db_engine, query: str, embed_model, db_looku
         db_engine: SQLAlchemy database engine instance.
         query (str): The search query text.
         embed_model: Embedding model instance to generate query vectors.
+        confessional_k (int): Number of confessional documents to retrieve.
+        biblical_k (int): Number of biblical documents to retrieve.
         db_lookup_func: Function to lookup relational database records, defaults to 
                         fetch_parallel_verses_and_lexicon.
                         
@@ -26,7 +36,7 @@ def retrieve_context(chroma_client, db_engine, query: str, embed_model, db_looku
         query_embedding = embed_model.encode(query).tolist()
         
         conf_collection = chroma_client.get_collection("confessional_collection")
-        conf_res = conf_collection.query(query_embeddings=[query_embedding], n_results=1)
+        conf_res = conf_collection.query(query_embeddings=[query_embedding], n_results=confessional_k)
         
         conf_docs = conf_res.get("documents", [[]])[0] if conf_res.get("documents") else []
         conf_metas = conf_res.get("metadatas", [[]])[0] if conf_res.get("metadatas") else []
@@ -39,7 +49,7 @@ def retrieve_context(chroma_client, db_engine, query: str, embed_model, db_looku
             })
             
         bib_collection = chroma_client.get_collection("biblical_collection")
-        bib_res = bib_collection.query(query_embeddings=[query_embedding], n_results=1)
+        bib_res = bib_collection.query(query_embeddings=[query_embedding], n_results=biblical_k)
         
         bib_metas = bib_res.get("metadatas", [[]])[0] if bib_res.get("metadatas") else []
         
