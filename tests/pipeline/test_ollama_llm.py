@@ -34,7 +34,12 @@ def test_ollama_chat_model_invoke_success(mock_post):
                 {"role": "system", "content": "You are a Lutheran assistant."},
                 {"role": "user", "content": "What is grace?"}
             ],
-            "stream": False
+            "stream": False,
+            "options": {
+                "num_predict": 150,
+                "temperature": 0.0,
+                "num_ctx": 1024
+            }
         },
         timeout=300
     )

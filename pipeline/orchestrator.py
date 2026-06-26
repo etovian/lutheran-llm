@@ -121,6 +121,87 @@ def format_context(retrieved_ctx: dict) -> str:
     return "\n".join(lines)
 
 
+def format_llm_context(retrieved_ctx: dict) -> str:
+    """
+    Format retrieved confessional chunks and scripture context (excluding lexicon)
+    into a structured string to minimize context window size for LLM generation.
+    """
+    lines = []
+    
+    # Confessional chunks
+    lines.append("--- CONFESSIONAL CONTEXT ---")
+    confessional_chunks = retrieved_ctx.get("confessional", [])
+    if confessional_chunks:
+        for chunk in confessional_chunks:
+            lines.append(f"Source: {chunk.get('citation')}")
+            lines.append(f"Content: {chunk.get('text')}\n")
+    else:
+        lines.append("No confessional context found.\n")
+        
+    # Scripture Context (Translations only, omitting lexicon to optimize CPU latency)
+    lines.append("--- SCRIPTURE CONTEXT ---")
+    scripture = retrieved_ctx.get("scripture", {})
+    translations = scripture.get("translations", {})
+    if translations:
+        for ver, text_val in translations.items():
+            lines.append(f"[{ver}]: {text_val}")
+        lines.append("")
+    else:
+        lines.append("No parallel scripture translations found.")
+        
+    return "\n".join(lines)
+
+
+def format_deep_dive_details(retrieved_ctx: dict) -> str:
+    """
+    Programmatically construct the HTML collapsible deep-dive details block.
+    """
+    lines = []
+    lines.append("<details>")
+    lines.append("<summary>Theological Depth</summary>")
+    
+    # Book of Concord Citations
+    lines.append("<h4>Book of Concord Citations</h4>")
+    confessional = retrieved_ctx.get("confessional", [])
+    if confessional:
+        for chunk in confessional:
+            citation = chunk.get("citation", "Book of Concord")
+            text_val = chunk.get("text", "")
+            lines.append(f"<p><strong>{citation}</strong>: <em>\"{text_val}\"</em></p>")
+    else:
+        lines.append("<p>No confessional citations found.</p>")
+        
+    # Parallel Bible Translations
+    lines.append("<h4>Parallel Bible Translations</h4>")
+    scripture = retrieved_ctx.get("scripture", {})
+    translations = scripture.get("translations", {})
+    if translations:
+        lines.append("<ul>")
+        for ver, text_val in translations.items():
+            lines.append(f"<li>[{ver}]: {text_val}</li>")
+        lines.append("</ul>")
+    else:
+        lines.append("<p>No parallel scripture translations found.</p>")
+        
+    # Original Language Word Analysis
+    lines.append("<h4>Original Language Word Analysis</h4>")
+    lexicon = scripture.get("lexicon", [])
+    if lexicon:
+        lines.append("<ul>")
+        for lex in lexicon:
+            lines.append(
+                f"<li>Word: {lex.get('word_text')}, Lemma: {lex.get('lemma')}, "
+                f"Strongs: {lex.get('strongs_number')}, "
+                f"Definition: {lex.get('definition')}</li>"
+            )
+        lines.append("</ul>")
+    else:
+        lines.append("<p>No lexicon analysis found.</p>")
+        
+    lines.append("</details>")
+    return "\n".join(lines)
+
+
 def run_orchestrator(chroma_client, db_engine, llm, query: str, embed_model) -> str:
     """
     Execute the RAG retrieval, context formatting, and LLM orchestration loop.
@@ -141,7 +222,7 @@ def run_orchestrator(chroma_client, db_engine, llm, query: str, embed_model) -> 
 
     try:
         retrieved_ctx = retrieve_context(chroma_client, db_engine, query, embed_model)
-        formatted_ctx = format_context(retrieved_ctx)
+        formatted_ctx = format_llm_context(retrieved_ctx)
         
         system_prompt = SYSTEM_PROMPT.format(context=formatted_ctx)
         
@@ -151,9 +232,18 @@ def run_orchestrator(chroma_client, db_engine, llm, query: str, embed_model) -> 
         ]
         
         response = llm.invoke(messages)
-        if hasattr(response, "content"):
-            return response.content
-        return str(response)
+        response_content = response.content if hasattr(response, "content") else str(response)
+        
+        # Post-process response to ensure robust HTML collapsible structure
+        if "<details>" in response_content and "</details>" in response_content:
+            return response_content
+            
+        if "<details>" in response_content:
+            response_content = response_content.split("<details>")[0].strip()
+            
+        # Programmatically construct and append deep-dive details
+        details_html = format_deep_dive_details(retrieved_ctx)
+        return f"{response_content}\n\n{details_html}"
         
     except Exception as e:
         logger.error("Failed to run orchestrator execution loop: %s", e, exc_info=True)

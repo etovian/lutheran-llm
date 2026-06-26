@@ -248,7 +248,15 @@ if query:
                 try:
                     # Choose LLM client based on status
                     if ollama_ok:
-                        llm = OllamaChatModel(model_name=settings.ollama_model, base_url=settings.ollama_base_url)
+                        llm = OllamaChatModel(
+                            model_name=settings.ollama_model,
+                            base_url=settings.ollama_base_url,
+                            options={
+                                "num_predict": settings.ollama_num_predict,
+                                "temperature": settings.ollama_temperature,
+                                "num_ctx": settings.ollama_num_ctx
+                            }
+                        )
                     else:
                         from pipeline.ollama_llm import SimulatedChatModel
                         llm = SimulatedChatModel()

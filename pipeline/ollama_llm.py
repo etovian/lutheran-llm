@@ -5,9 +5,14 @@ class OllamaChatModel:
     """
     A custom LangChain-compatible wrapper for local Ollama chat models.
     """
-    def __init__(self, model_name: str = "llama3", base_url: str = "http://localhost:11434"):
+    def __init__(self, model_name: str = "llama3", base_url: str = "http://localhost:11434", options: dict = None):
         self.model_name = model_name
         self.base_url = base_url
+        self.options = options or {
+            "num_predict": 150,
+            "temperature": 0.0,
+            "num_ctx": 1024
+        }
 
     def invoke(self, messages: list) -> AIMessage:
         formatted_messages = []
@@ -30,7 +35,8 @@ class OllamaChatModel:
                 json={
                     "model": self.model_name,
                     "messages": formatted_messages,
-                    "stream": False
+                    "stream": False,
+                    "options": self.options
                 },
                 timeout=300
             )

@@ -44,7 +44,7 @@ def test_run_orchestrator(mock_retrieve_context):
     assert isinstance(messages[0], SystemMessage)
     assert isinstance(messages[1], HumanMessage)
     assert "Freely justified" in messages[0].content
-    assert "δικαιοῦσθαι" in messages[0].content
+    assert "δικαιοῦσθαι" not in messages[0].content  # Lexicon omitted for CPU latency optimization
     assert messages[1].content == "How are we justified?"
 
 
@@ -82,4 +82,36 @@ def test_run_orchestrator_crisis_preemption(mock_retrieve_context, mock_detect_c
     assert "comforting Gospel" in res or "pastor" in res
     mock_retrieve_context.assert_not_called()
     mock_llm.invoke.assert_not_called()
+
+
+@patch("pipeline.orchestrator.retrieve_context")
+def test_run_orchestrator_fallback_details(mock_retrieve_context):
+    """Verify that run_orchestrator programmatically appends deep-dive details when LLM response lacks them."""
+    mock_chroma = MagicMock()
+    mock_db = MagicMock()
+    mock_llm = MagicMock()
+    mock_embed_model = MagicMock()
+    
+    mock_retrieve_context.return_value = {
+        "confessional": [{"text": "Freely justified", "citation": "AC IV, 1"}],
+        "scripture": {
+            "translations": {"WEB": "Justified by faith"},
+            "lexicon": [{"word_text": "δικαιοῦσθαι", "lemma": "δικαιόω", "strongs_number": "G1344", "definition": "to justify"}],
+        }
+    }
+    
+    # LLM returns ONLY summary
+    mock_llm_response = MagicMock()
+    mock_llm_response.content = "Summary: We are justified by faith."
+    mock_llm.invoke.return_value = mock_llm_response
+    
+    res = run_orchestrator(mock_chroma, mock_db, mock_llm, "Query", mock_embed_model)
+    
+    assert "Summary: We are justified by faith." in res
+    assert "<details>" in res
+    assert "<summary>Theological Depth</summary>" in res
+    assert "AC IV, 1" in res
+    assert "Justified by faith" in res
+    assert "δικαιοῦσθαι" in res
+    assert "</details>" in res
 
