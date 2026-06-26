@@ -2,6 +2,7 @@ import logging
 from database.queries import fetch_parallel_verses_and_lexicon
 from langchain_core.messages import SystemMessage, HumanMessage
 from pipeline.prompt import SYSTEM_PROMPT
+from pipeline.guardrails import detect_pastoral_crisis, get_redirection_response
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +135,10 @@ def run_orchestrator(chroma_client, db_engine, llm, query: str, embed_model) -> 
     Returns:
         str: Synthesized response from the LLM.
     """
+    if detect_pastoral_crisis(query):
+        logger.info("Pastoral crisis detected for query: %s. Preempting loop.", query)
+        return get_redirection_response()
+
     try:
         retrieved_ctx = retrieve_context(chroma_client, db_engine, query, embed_model)
         formatted_ctx = format_context(retrieved_ctx)

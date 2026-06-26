@@ -65,3 +65,21 @@ def test_run_orchestrator_exception(mock_retrieve_context):
     
     with pytest.raises(Exception, match="LLM connection timed out"):
         run_orchestrator(mock_chroma, mock_db, mock_llm, "Query", mock_embed_model)
+
+
+@patch("pipeline.orchestrator.detect_pastoral_crisis")
+@patch("pipeline.orchestrator.retrieve_context")
+def test_run_orchestrator_crisis_preemption(mock_retrieve_context, mock_detect_crisis):
+    """Verify that run_orchestrator pre-empts normal RAG synthesis on crisis queries."""
+    mock_detect_crisis.return_value = True
+    mock_chroma = MagicMock()
+    mock_db = MagicMock()
+    mock_llm = MagicMock()
+    mock_embed_model = MagicMock()
+    
+    res = run_orchestrator(mock_chroma, mock_db, mock_llm, "I feel so guilty", mock_embed_model)
+    
+    assert "comforting Gospel" in res or "pastor" in res
+    mock_retrieve_context.assert_not_called()
+    mock_llm.invoke.assert_not_called()
+
