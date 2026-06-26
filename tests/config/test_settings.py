@@ -8,12 +8,16 @@ def test_settings_load_from_env(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql://test_user:test_pass@localhost:5432/test_db")
     monkeypatch.setenv("PRIMARY_SEARCH_VERSION", "WEB")
     monkeypatch.setenv("CHROMA_DB_PATH", "./test_chroma")
+    monkeypatch.setenv("OLLAMA_MODEL", "mistral")
+    monkeypatch.setenv("OLLAMA_BASE_URL", "http://localhost:11435")
     
     settings = Settings()
     
     assert settings.database_url == "postgresql://test_user:test_pass@localhost:5432/test_db"
     assert settings.primary_search_version == "WEB"
     assert settings.chroma_db_path == "./test_chroma"
+    assert settings.ollama_model == "mistral"
+    assert settings.ollama_base_url == "http://localhost:11435"
 
 
 def test_settings_default_values(monkeypatch):
@@ -24,8 +28,12 @@ def test_settings_default_values(monkeypatch):
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("PRIMARY_SEARCH_VERSION", raising=False)
     monkeypatch.delenv("CHROMA_DB_PATH", raising=False)
+    monkeypatch.delenv("OLLAMA_MODEL", raising=False)
+    monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
     
     settings = Settings()
     assert settings.database_url == "postgresql://postgres:postgres@localhost:5432/lutheran_db"
     assert settings.primary_search_version == "WEB"
     assert settings.chroma_db_path == "./.chroma"
+    assert settings.ollama_model == "llama3"
+    assert settings.ollama_base_url == "http://localhost:11434"
