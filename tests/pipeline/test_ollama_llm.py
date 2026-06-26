@@ -36,7 +36,7 @@ def test_ollama_chat_model_invoke_success(mock_post):
             ],
             "stream": False
         },
-        timeout=5
+        timeout=90
     )
 
 @patch("requests.post")
