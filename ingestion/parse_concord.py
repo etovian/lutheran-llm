@@ -1,5 +1,8 @@
 import re
+import logging
 from bs4 import BeautifulSoup
+
+logger = logging.getLogger(__name__)
 
 BOOK_MAPPING = {
     "Augsburg Confession": "AC",
@@ -24,7 +27,7 @@ def parse_html_to_chunks(html_content: str, book_name: str) -> list[dict]:
     chunks = []
     
     current_article_num = "Unknown"
-    current_article_id = "Unknown"
+    current_article_id = f"{book_abbrev}_Unknown"
 
     for tag in soup.find_all(["h2", "p"]):
         if tag.name == "h2":
@@ -40,6 +43,9 @@ def parse_html_to_chunks(html_content: str, book_name: str) -> list[dict]:
                 paragraph_number = int(match.group(1))
                 para_text = match.group(2).strip()
                 
+                if current_article_num == "Unknown":
+                    logger.warning("Paragraph %d parsed before any valid Article header in book %s", paragraph_number, book_name)
+                
                 citation = f"{book_name}, Article {current_article_num}, Paragraph {paragraph_number}"
                 
                 chunks.append({
@@ -49,5 +55,7 @@ def parse_html_to_chunks(html_content: str, book_name: str) -> list[dict]:
                     "text": para_text,
                     "citation": citation
                 })
+            else:
+                logger.debug("Skipping unnumbered paragraph in %s: %r", book_name, text_content)
                 
     return chunks
