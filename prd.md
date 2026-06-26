@@ -1,0 +1,168 @@
+# Product Requirements Document (PRD)
+
+## 1. Introduction & Project Overview
+
+### 1.1 Objective
+The objective of this project is to develop an AI-powered conversational assistant capable of answering inquiries about the Lutheran faith. The system is designed for laypeople and seekers who are curious about Lutheran doctrine. It provides a welcoming, low-barrier interface while maintaining absolute theological precision and strict orthodoxy.
+
+### 1.2 Core Architectural Philosophy
+To guarantee absolute fidelity to confessional standards and prevent "hallucinations" or heterodox drift, the system utilizes a Retrieval-Augmented Generation (RAG) architecture. The Large Language Model (LLM) functions strictly as an advanced reasoning and synthesis engine. It is structurally constrained to formulate answers using only verified historical documents injected directly into its context window from a secure, curated knowledge base.
+
+---
+
+## 2. System Architecture & High-Level Data Flow
+
+The system operates as a stateless orchestration loop that bridges semantic search with a relational database lookup before synthesizing the final output.
+
+### High-Level Data Flow Diagram
+
+```mermaid
+flowchart TD
+    UserQuery["User Query"] --> SemanticSearch
+    
+    subgraph SemanticSearch["1. Vector Database Semantic Search"]
+        ConfessionalIndex["Confessional Index (ChromaDB)"]
+        BiblicalIndex["Biblical Index (ChromaDB)"]
+    end
+    
+    ConfessionalIndex --> ConfChunks["Relevant Patristic/Confessional Chunks"]
+    BiblicalIndex --> MatchingVerse["Matching Verse ID"]
+    
+    MatchingVerse --> RelationalLookup["2. Relational Lookup<br>(Pulls parallel KJV, MKJV, Greek, Hebrew, and Strong's Numbers)"]
+    
+    ConfChunks --> LLMOrch["3. LLM Orchestration & Prompt Synthesis<br>(Merges all data with Strict Orthodoxy System Prompt)"]
+    RelationalLookup --> LLMOrch
+    
+    LLMOrch --> Presentation["4. Front-End Presentation<br>(Displays Simple Summary Tier + Collapsible Deep-Dive)"]
+
+    %% Styling
+    classDef default fill:#f9f9f9,stroke:#333,stroke-width:1px;
+    classDef process fill:#e1f5fe,stroke:#0288d1,stroke-width:2px;
+    classDef data fill:#fff3e0,stroke:#f57c00,stroke-width:1px;
+    classDef output fill:#e8f5e9,stroke:#388e3c,stroke-width:2px;
+    
+    class SemanticSearch,RelationalLookup,LLMOrch process;
+    class ConfessionalIndex,BiblicalIndex,ConfChunks,MatchingVerse data;
+    class Presentation output;
+```
+
+### Original ASCII Architecture
+
+```text
+[User Query] 
+     │
+     ▼
+┌────────────────────────────────────────────────────────┐
+│ 1. Vector Database Semantic Search                     │
+├────────────────────────────────┬───────────────────────┤
+│ Confessional Index (ChromaDB)   │ Biblical Index (ChromaDB)
+└──────────────┬─────────────────┴───────────┬───────────┘
+               │                             │
+               ▼                             ▼
+       [Relevant Patristic/           [Matching Verse ID]
+        Confessional Chunks]                 │
+                                             ▼
+                               ┌─────────────────────────┐
+                               │ 2. Relational Lookup    │
+                               ├─────────────────────────┤
+                               │ Pulls parallel KJV,     │
+                               │ MKJV, Greek, Hebrew,    │
+                               │ and Strong's Numbers    │
+                               └─────────────┬───────────┘
+                                             │
+                                             ▼
+┌────────────────────────────────────────────────────────┐
+│ 3. LLM Orchestration & Prompt Synthesis                │
+├────────────────────────────────────────────────────────┤
+│ Merges all data with Strict Orthodoxy System Prompt    │
+└────────────────────────────┬───────────────────────────┘
+                             │
+                             ▼
+┌────────────────────────────────────────────────────────┐
+│ 4. Front-End Presentation                              │
+├────────────────────────────────────────────────────────┤
+│ Displays Simple Summary Tier + Collapsible Deep-Dive   │
+└────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 3. Functional Requirements
+
+### 3.1 Two-Tiered Response Format (Option A)
+The system must format every response into a strict, two-tiered layout using standard Markdown structures to satisfy both accessibility and theological depth simultaneously.
+
+*   **The Summary Tier (Simple):** A clear, warm, and concise explanation written in plain, accessible English, optimized for laypeople, seekers, or catechumens. This tier must use the designated primary English translation for scriptural references.
+*   **The Deep-Dive Tier (Depth):** A collapsible user interface element (implemented via HTML `<details>` and `<summary>` tags). When expanded, it must automatically expose:
+    *   The precise, verbatim text from the Book of Concord with canonical citations.
+    *   Cross-referenced verses from alternate parallel English translations.
+    *   Original language fragments (Greek/Hebrew) mapped directly to their respective Strong’s Concordance Numbers and definitions.
+
+### 3.2 Dynamic Translation Engine & Relational Indexing
+The system must decouple the scriptural text from static database columns to support on-the-fly modifications of the primary translation and seamless expansion of the textual library.
+
+*   **Primary Target Flexibility:** The system must read an environment configuration flag (e.g., `PRIMARY_SEARCH_VERSION="WEB"`) to determine which scriptural translation is used to build the semantic vector index.
+*   **Extensible Relational Schema:** The biblical data layer must map text fragments via a unique, unified structural address (e.g., `ROM_3_28`). Adding a new translation must simply require registering the new version identifier code and appending the text strings under the matching structural key.
+
+### 3.3 Guardrails and Redirection Boundaries
+*   **Theological Boundaries:** If an inquirer poses a highly speculative query regarding subjects where Scripture or the Confessions are explicitly silent, the model must be instructed to humbly state that the text does not reveal an answer, rather than philosophizing.
+*   **Pastoral Redirection:** For queries identified as deeply personal, pastoral, or indicative of spiritual distress (e.g., extreme guilt, crisis of faith, severe personal trauma), the model must present a comforting, gospel-centered assurance and explicitly instruct the user to seek immediate pastoral care at a local confessional congregation.
+
+---
+
+## 4. Technical Specifications & Data Engineering
+
+### 4.1 Ingestion Pipeline Specifications
+*   **Confessional Source Material:** Ingestion must target structurally clean HTML archives of the public-domain Triglot Concordia (1580/1917 text). Raw PDF scraping of parallel columns must be avoided to prevent theological bleeding and alignment errors.
+*   **Hierarchical Chunking:** Confessional text must be split into chunks utilizing strict theological markers (Book, Article, Section, Paragraph) rather than arbitrary character tallies. This ensures complete arguments (such as Augsburg Confession Article IV) remain semantically unbroken.
+*   **Scriptural Source Material:** The core baseline database consists exclusively of open-licensed and public-domain materials:
+    *   **Primary Teaching/Search Target:** World English Bible (WEB).
+    *   **Parallel Secondary Targets:** King James Version (KJV), Modern King James Version (MKJV).
+    *   **Original Languages:** Westminster Leningrad Codex (WLC) for the Old Testament; Textus Receptus, Byzantine Majority, or open critical texts (e.g., SBLGNT) for the New Testament; Brenton/Swete for the Septuagint (LXX). All original language texts must feature integrated Strong's Concordance tagging.
+
+### 4.2 Local Prototyping Stack
+The initial iteration must run completely localized, free, and open-source on a single developer workstation using the following components:
+*   **Language/Runtime:** Python 3.10+
+*   **Vector Store:** ChromaDB or FAISS (In-memory, localized disk persistence).
+*   **Framework Orchestration:** LangChain or LlamaIndex.
+*   **Embedding Model:** Local execution of an open embedding library (e.g., `all-MiniLM-L6-v2` via Hugging Face/SentenceTransformers).
+*   **Local LLM:** Ollama running open weights locally (e.g., Llama 3 or Mistral) via CPU/GPU.
+
+### 4.3 Cloud Migration Strategy
+The architecture must be constructed abstractly so that migrating from the local prototype to Google Cloud Platform (GCP) involves configuration adjustments rather than an application rewrite:
+*   Local ChromaDB instances will lift-and-shift directly into Vertex AI Vector Search.
+*   Local Ollama/LangChain LLM invocations will swap seamlessly to Vertex AI Gemini API endpoints.
+
+---
+
+## 5. Non-Functional Requirements
+*   **Data Privacy:** Local query streams during testing must be entirely anonymized. No personally identifiable information (PII) may be captured.
+*   **Performance Baseline:** Local inference times should return the initial text tier within 2–4 seconds on standard modern developer hardware.
+*   **Licensing Compliance:** The initial core data index must remain entirely free of proprietary data licensing constraints, operating exclusively within public domain or completely open digital licensing bounds.
+
+---
+
+## 6. System Prompt Blueprint
+
+The following developer prompt must be hardcoded into the execution orchestrator as the immutable foundational instruction set:
+
+```plaintext
+You are a strictly orthodox confessional Lutheran AI assistant. 
+Your objective is to provide clear, faithful, and scripturally grounded answers to inquiries about the Lutheran faith.
+
+CRITICAL INSTRUCTIONS:
+1. Base your assertions exclusively on the verified text snippets provided to you from Holy Scripture and the Book of Concord. Do not invent, extrapolate, or introduce heterodox teachings.
+2. If the provided context is silent on a speculative matter, explicitly state that Scripture does not reveal an answer.
+3. If a query indicates intense personal guilt, spiritual crisis, or a need for pastoral counseling, provide immediate comforting Gospel assurance and direct the user to consult a local pastor.
+
+RESPONSE FORMAT:
+You must structure your response exactly as follows:
+- Tier 1 (Summary): Write a warm, highly clear, and accessible explanation in plain modern English suitable for a lay person. Use the primary translation text provided in the context for quotes.
+- Tier 2 (Deep-Dive): Append an HTML collapsible section exactly like this:
+<details>
+<summary>Theological Depth</summary>
+Provide the verbatim passages from the Triglot Book of Concord alongside precise article and paragraph citations.
+Provide the matching parallel verses from alternate translations (KJV/MKJV).
+Provide the original language Greek/Hebrew text fragments accompanied by their corresponding Strong's Numbers and root definitions.
+</details>
+```
