@@ -43,3 +43,21 @@ def test_fetch_parallel_translations_exception():
     with pytest.raises(OperationalError):
         fetch_parallel_translations(mock_engine, verse_id=1)
 
+
+def test_fetch_single_translation(db_engine):
+    """fetch_single_translation returns verse text for a specific version."""
+    from database.queries import fetch_single_translation
+    from sqlalchemy import text
+    # Seed a known verse
+    with db_engine.connect() as conn:
+        conn.execute(text("INSERT INTO book (book_id, name, testament) VALUES (99, 'TestBook', 'NT') ON CONFLICT DO NOTHING"))
+        conn.execute(text("INSERT INTO verse (verse_id, book_id, chapter, verse_number, original_verse, address_code) VALUES (9901, 99, 1, 1, 'original', 'TST 1:1') ON CONFLICT DO NOTHING"))
+        conn.execute(text("INSERT INTO verse_translation (verse_id, version_code, text) VALUES (9901, 'WEB', 'Test web text') ON CONFLICT DO NOTHING"))
+        conn.execute(text("INSERT INTO verse_translation (verse_id, version_code, text) VALUES (9901, 'KJV', 'Test kjv text') ON CONFLICT DO NOTHING"))
+        conn.commit()
+
+    result = fetch_single_translation(db_engine, 9901, "KJV")
+    assert result == "Test kjv text"
+
+    result_missing = fetch_single_translation(db_engine, 9901, "MKJV")
+    assert result_missing == ""

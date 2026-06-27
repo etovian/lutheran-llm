@@ -31,3 +31,32 @@ def fetch_parallel_translations(engine, verse_id: int) -> dict:
         
     return translations
 
+
+def fetch_single_translation(engine, verse_id: int, version_code: str) -> str:
+    """
+    Fetch a single verse translation from the relational database.
+
+    Args:
+        engine: SQLAlchemy engine instance.
+        verse_id (int): Unique identifier of the verse.
+        version_code (str): Translation version code, e.g. "WEB", "KJV", "MKJV".
+
+    Returns:
+        str: The verse text, or empty string if not found.
+    """
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(
+                text("""
+                    SELECT text FROM verse_translation
+                    WHERE verse_id = :verse_id AND version_code = :version_code
+                """),
+                {"verse_id": verse_id, "version_code": version_code}
+            ).mappings().first()
+            return row["text"] if row else ""
+    except Exception as e:
+        logger.error(
+            "Failed to fetch translation for verse_id %d version %s: %s",
+            verse_id, version_code, e, exc_info=True
+        )
+        return ""
