@@ -2,6 +2,14 @@ import logging
 import html
 from typing import Any, Callable, Dict, List, Optional
 from config.settings import Settings
+
+class OrchestratorResponse(str):
+    """A custom string subclass that holds extra attributes from orchestrator run."""
+    def __new__(cls, content, summary=None, retrieved_ctx=None):
+        obj = super().__new__(cls, content)
+        obj.summary = summary if summary is not None else ""
+        obj.retrieved_ctx = retrieved_ctx if retrieved_ctx is not None else {}
+        return obj
 from database.queries import fetch_parallel_translations
 from langchain_core.messages import SystemMessage, HumanMessage
 from pipeline.prompt import SYSTEM_PROMPT
@@ -132,7 +140,7 @@ def format_llm_context(retrieved_ctx: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def format_deep_dive_details(retrieved_ctx: Dict[str, Any]) -> str:
+def format_deep_dive_details(retrieved_ctx: Dict[str, Any], primary_translation: str = "WEB") -> str:
     """
     Programmatically construct the HTML collapsible deep-dive details block.
     """
@@ -151,52 +159,24 @@ def format_deep_dive_details(retrieved_ctx: Dict[str, Any]) -> str:
     else:
         lines.append("<p>No confessional citations found.</p>")
         
-    # Parallel Bible Translations
-    lines.append("<h4>Parallel Bible Translations</h4>")
+    # Bible Passages
+    lines.append("<h4>Bible Passages</h4>")
     scriptures = retrieved_ctx.get("scriptures", [])
     if scriptures:
         for scripture in scriptures:
             citation = html.escape(scripture.get("citation", "Unknown Scripture"))
-            lines.append(f"<h5>{citation}</h5>")
             translations = scripture.get("translations", {})
-            if translations:
-                lines.append("<ul>")
-                for ver, text_val in translations.items():
-                    escaped_ver = html.escape(ver)
-                    escaped_text = html.escape(text_val)
-                    lines.append(f"<li>[{escaped_ver}]: {escaped_text}</li>")
-                lines.append("</ul>")
-            else:
-                lines.append("<p>No parallel scripture translations found.</p>")
+            verse_text = translations.get(primary_translation, "")
+            if not verse_text:
+                verse_text = translations.get("WEB", "")
+                if not verse_text and translations:
+                    verse_text = list(translations.values())[0]
+            
+            escaped_translation = html.escape(primary_translation)
+            escaped_text = html.escape(verse_text)
+            lines.append(f"<p><strong>{citation} ({escaped_translation})</strong>: {escaped_text}</p>")
     else:
         lines.append("<p>No parallel scripture translations found.</p>")
-        
-    # Original Language Word Analysis
-    lines.append("<h4>Original Language Word Analysis</h4>")
-    if scriptures:
-        has_any_lexicon = False
-        for scripture in scriptures:
-            lexicon = scripture.get("lexicon", [])
-            if lexicon:
-                has_any_lexicon = True
-                citation = html.escape(scripture.get("citation", "Unknown Scripture"))
-                lines.append(f"<h5>{citation}</h5>")
-                lines.append("<ul>")
-                for lex in lexicon:
-                    word_text = html.escape(lex.get('word_text', ''))
-                    lemma = html.escape(lex.get('lemma', ''))
-                    strongs_number = html.escape(lex.get('strongs_number', ''))
-                    definition = html.escape(lex.get('definition', ''))
-                    lines.append(
-                        f"<li>Word: {word_text}, Lemma: {lemma}, "
-                        f"Strongs: {strongs_number}, "
-                        f"Definition: {definition}</li>"
-                    )
-                lines.append("</ul>")
-        if not has_any_lexicon:
-            lines.append("<p>No lexicon analysis found.</p>")
-    else:
-        lines.append("<p>No lexicon analysis found.</p>")
         
     lines.append("</details>")
     return "\n".join(lines)
@@ -209,8 +189,9 @@ def run_orchestrator(
     query: str, 
     embed_model: Any,
     confessional_k: Optional[int] = None,
-    biblical_k: Optional[int] = None
-) -> str:
+    biblical_k: Optional[int] = None,
+    primary_translation: str = "WEB"
+) -> OrchestratorResponse:
     """
     Execute the RAG retrieval, context formatting, and LLM orchestration loop.
     
@@ -222,13 +203,15 @@ def run_orchestrator(
         embed_model: Embedding model instance.
         confessional_k (int): Number of confessional documents to retrieve.
         biblical_k (int): Number of biblical documents to retrieve.
+        primary_translation (str): Primary Bible translation version.
         
     Returns:
-        str: Synthesized response from the LLM.
+        OrchestratorResponse: Synthesized response from the LLM with summary and retrieved_ctx metadata.
     """
     if detect_pastoral_crisis(query):
         logger.info("Pastoral crisis detected for query: %s. Preempting loop.", query)
-        return get_redirection_response()
+        redirection = get_redirection_response()
+        return OrchestratorResponse(redirection, summary=redirection, retrieved_ctx={"confessional": [], "scriptures": []})
 
     try:
         retrieved_ctx = retrieve_context(
@@ -251,18 +234,15 @@ def run_orchestrator(
         response = llm.invoke(messages)
         response_content = response.content if hasattr(response, "content") else str(response)
         
-        # Post-process response to ensure robust HTML collapsible structure
-        if "<details>" in response_content and "</details>" in response_content:
-            return response_content
-            
+        summary = response_content
         if "<details>" in response_content:
-            response_content = response_content.split("<details>")[0].strip()
+            summary = response_content.split("<details>")[0].strip()
             
         # Programmatically construct and append deep-dive details
-        details_html = format_deep_dive_details(retrieved_ctx)
-        return f"{response_content}\n\n{details_html}"
+        details_html = format_deep_dive_details(retrieved_ctx, primary_translation)
+        full_res = f"{summary}\n\n{details_html}"
+        return OrchestratorResponse(full_res, summary=summary, retrieved_ctx=retrieved_ctx)
         
     except Exception as e:
         logger.error("Failed to run orchestrator execution loop: %s", e, exc_info=True)
         raise
-

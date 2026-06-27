@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock, patch
 import pytest
 from langchain_core.messages import SystemMessage, HumanMessage
-from pipeline.orchestrator import run_orchestrator
+from pipeline.orchestrator import run_orchestrator, format_deep_dive_details
 
 @patch("pipeline.orchestrator.retrieve_context")
 def test_run_orchestrator(mock_retrieve_context):
@@ -11,19 +11,18 @@ def test_run_orchestrator(mock_retrieve_context):
     mock_llm = MagicMock()
     mock_embed_model = MagicMock()
     
-    # Configure mock retrieve_context return values
+    # Configure mock retrieve_context return values (no lexicon)
     mock_retrieve_context.return_value = {
         "confessional": [{"text": "Freely justified", "citation": "AC IV, 1"}],
         "scriptures": [{
             "citation": "Romans 3:28",
             "translations": {"WEB": "Justified by faith"},
-            "lexicon": [{"word_text": "δικαιοῦσθαι", "lemma": "δικαιόω", "strongs_number": "G1344", "pronunciation": "dik-ah-yo'-o", "definition": "to justify"}],
         }]
     }
     
     # Configure mock LLM response
     mock_llm_response = MagicMock()
-    mock_llm_response.content = "Summary: We are justified by faith.\n<details>\n<summary>Theological Depth</summary>\n..."
+    mock_llm_response.content = "Summary: We are justified by faith."
     mock_llm.invoke.return_value = mock_llm_response
     
     res = run_orchestrator(
@@ -31,7 +30,8 @@ def test_run_orchestrator(mock_retrieve_context):
         db_engine=mock_db,
         llm=mock_llm,
         query="How are we justified?",
-        embed_model=mock_embed_model
+        embed_model=mock_embed_model,
+        primary_translation="WEB"
     )
     
     assert "Summary: We are justified by faith." in res
@@ -48,7 +48,7 @@ def test_run_orchestrator(mock_retrieve_context):
     assert isinstance(messages[0], SystemMessage)
     assert isinstance(messages[1], HumanMessage)
     assert "Freely justified" in messages[0].content
-    assert "δικαιοῦσθαι" not in messages[0].content  # Lexicon omitted for CPU latency optimization
+    assert "Justified by faith" in messages[0].content
     assert messages[1].content == "How are we justified?"
 
 
@@ -101,7 +101,6 @@ def test_run_orchestrator_fallback_details(mock_retrieve_context):
         "scriptures": [{
             "citation": "Romans 3:28",
             "translations": {"WEB": "Justified by faith"},
-            "lexicon": [{"word_text": "δικαιοῦσθαι", "lemma": "δικαιόω", "strongs_number": "G1344", "definition": "to justify"}],
         }]
     }
     
@@ -110,14 +109,15 @@ def test_run_orchestrator_fallback_details(mock_retrieve_context):
     mock_llm_response.content = "Summary: We are justified by faith."
     mock_llm.invoke.return_value = mock_llm_response
     
-    res = run_orchestrator(mock_chroma, mock_db, mock_llm, "Query", mock_embed_model)
+    res = run_orchestrator(mock_chroma, mock_db, mock_llm, "Query", mock_embed_model, primary_translation="WEB")
     
     assert "Summary: We are justified by faith." in res
     assert "<details>" in res
     assert "<summary>Theological Depth</summary>" in res
     assert "AC IV, 1" in res
+    assert "Romans 3:28 (WEB)" in res
     assert "Justified by faith" in res
-    assert "δικαιοῦσθαι" in res
+    assert "Original Language Word Analysis" not in res
     assert "</details>" in res
 
 
@@ -136,12 +136,10 @@ def test_run_orchestrator_multiple_citations(mock_retrieve_context):
             {
                 "citation": "Romans 3:28",
                 "translations": {"WEB": "Justified by faith"},
-                "lexicon": [{"word_text": "δικαιοῦσθαι", "lemma": "δικαιόω", "strongs_number": "G1344", "definition": "to justify"}],
             },
             {
                 "citation": "Ephesians 2:8",
                 "translations": {"WEB": "By grace you have been saved through faith"},
-                "lexicon": [{"word_text": "χάριτί", "lemma": "χάρις", "strongs_number": "G5485", "definition": "grace"}],
             }
         ]
     }
@@ -156,10 +154,11 @@ def test_run_orchestrator_multiple_citations(mock_retrieve_context):
         db_engine=mock_db,
         llm=mock_llm,
         query="Faith and grace query",
-        embed_model=mock_embed_model
+        embed_model=mock_embed_model,
+        primary_translation="WEB"
     )
     
-    # Verify that the LLM call prompt contained both scriptures and translations, but no lexicons
+    # Verify that the LLM call prompt contained both scriptures and translations
     mock_llm.invoke.assert_called_once()
     messages = mock_llm.invoke.call_args[0][0]
     prompt_content = messages[0].content
@@ -168,20 +167,18 @@ def test_run_orchestrator_multiple_citations(mock_retrieve_context):
     assert "Justified by faith" in prompt_content
     assert "Ephesians 2:8" in prompt_content
     assert "By grace you have been saved through faith" in prompt_content
-    assert "δικαιοῦσθαι" not in prompt_content
-    assert "χάριτί" not in prompt_content
     
-    # Verify programmatic deep-dive details output contains both scriptures and their lexicons
+    # Verify programmatic deep-dive details output contains both scriptures in selected translation
     assert "Summary: We are saved and justified by faith through grace." in res
     assert "<details>" in res
     assert "<summary>Theological Depth</summary>" in res
     assert "AC IV, 1" in res
     
-    assert "Romans 3:28" in res
+    assert "Romans 3:28 (WEB)" in res
     assert "Justified by faith" in res
-    assert "δικαιοῦσθαι" in res
     
-    assert "Ephesians 2:8" in res
+    assert "Ephesians 2:8 (WEB)" in res
     assert "By grace you have been saved through faith" in res
-    assert "χάριτί" in res
+    assert "Original Language Word Analysis" not in res
     assert "</details>" in res
+

@@ -2,7 +2,7 @@ import streamlit as st
 import logging
 from config.settings import Settings
 from database.connection import get_engine, check_connection
-from pipeline.orchestrator import run_orchestrator
+from pipeline.orchestrator import run_orchestrator, format_deep_dive_details
 from pipeline.ollama_llm import OllamaChatModel
 import chromadb
 from sentence_transformers import SentenceTransformer
@@ -224,7 +224,15 @@ if "messages" not in st.session_state:
 # Display past messages
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
-        st.markdown(message["content"], unsafe_allow_html=True)
+        if message["role"] == "user":
+            st.markdown(message["content"])
+        else:
+            if isinstance(message, dict) and "retrieved_ctx" in message:
+                st.markdown(message["summary"])
+                details_html = format_deep_dive_details(message["retrieved_ctx"], selected_version)
+                st.markdown(details_html, unsafe_allow_html=True)
+            else:
+                st.markdown(message.get("content", ""), unsafe_allow_html=True)
 
 # Handle user input
 query = st.chat_input("Ask a question about Lutheran doctrine:")
@@ -242,7 +250,11 @@ if query:
                 "and the embedding model are properly running."
             )
             st.markdown(error_msg)
-            st.session_state.messages.append({"role": "assistant", "content": error_msg})
+            st.session_state.messages.append({
+                "role": "assistant",
+                "summary": error_msg,
+                "retrieved_ctx": {"confessional": [], "scriptures": []}
+            })
         else:
             with st.spinner("Searching scriptural and confessional context..."):
                 try:
@@ -266,12 +278,24 @@ if query:
                         db_engine=db_engine,
                         llm=llm,
                         query=query,
-                        embed_model=embed_model
+                        embed_model=embed_model,
+                        primary_translation=selected_version
                     )
                     
-                    st.markdown(response, unsafe_allow_html=True)
-                    st.session_state.messages.append({"role": "assistant", "content": response})
+                    st.markdown(response.summary)
+                    details_html = format_deep_dive_details(response.retrieved_ctx, selected_version)
+                    st.markdown(details_html, unsafe_allow_html=True)
+                    
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "summary": response.summary,
+                        "retrieved_ctx": response.retrieved_ctx
+                    })
                 except Exception as e:
                     err_text = f"❌ Error executing RAG pipeline: {e}"
                     st.markdown(err_text)
-                    st.session_state.messages.append({"role": "assistant", "content": err_text})
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "summary": err_text,
+                        "retrieved_ctx": {"confessional": [], "scriptures": []}
+                    })
