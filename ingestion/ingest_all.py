@@ -3,8 +3,7 @@ import re
 import json
 import glob
 import logging
-import bs4
-from bs4 import BeautifulSoup
+import xml.etree.ElementTree as ET
 from sqlalchemy import text
 
 from config.settings import Settings
@@ -172,41 +171,40 @@ def seed_strongs(conn):
             st
         )
 
+def get_tag_name(tag: str) -> str:
+    if tag.startswith("{"):
+        return tag.split("}", 1)[1]
+    return tag
+
 def parse_usfx_xml(xml_content_or_path: str, conn, key_verses: dict) -> dict:
     logger.info("Parsing USFX XML file...")
     if xml_content_or_path.strip().startswith("<"):
-        xml_content = xml_content_or_path
+        root = ET.fromstring(xml_content_or_path)
     else:
-        with open(xml_content_or_path, "r", encoding="utf-8") as f:
-            xml_content = f.read()
+        tree = ET.parse(xml_content_or_path)
+        root = tree.getroot()
 
-    import warnings
-    from bs4 import XMLParsedAsHTMLWarning
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
-        soup = BeautifulSoup(xml_content, "html.parser")
-    
     allowed_usfx_ids = {b[3] for b in CANONICAL_BOOKS}
-    book_elements = {b.get("id"): b for b in soup.find_all("book") if b.get("id") in allowed_usfx_ids}
-    
+    # Build maps
+    book_elements = {}
+    for book_el in root.findall(".//book"):
+        b_id = book_el.attrib.get("id")
+        if b_id in allowed_usfx_ids:
+            book_elements[b_id] = book_el
+            
     address_to_id = {}
     verse_id_counter = 1
+    
+    parsed_verses = []
     
     for book_id_int, book_name, testament, usfx_id in CANONICAL_BOOKS:
         book_tag = book_elements.get(usfx_id)
         if book_tag is None:
             continue
             
-        # Decompose footnotes and cross-references
-        for tag_name in ["f", "x"]:
-            for t in book_tag.find_all(tag_name):
-                t.decompose()
-                
         current_chapter = None
         current_verse_num = None
         current_verse_text_parts = []
-        
-        parsed_verses = []
         
         def save_current_verse():
             nonlocal current_verse_num, current_verse_text_parts, verse_id_counter
@@ -232,57 +230,83 @@ def parse_usfx_xml(xml_content_or_path: str, conn, key_verses: dict) -> dict:
                 current_verse_num = None
                 current_verse_text_parts = []
 
-        for item in book_tag.descendants:
-            if isinstance(item, bs4.Tag):
-                if item.name == "c":
-                    save_current_verse()
-                    c_id = item.get("id")
-                    if c_id and c_id.isdigit():
-                        current_chapter = int(c_id)
-                elif item.name == "v":
-                    save_current_verse()
-                    v_id = item.get("id")
-                    if v_id and v_id.isdigit():
-                        current_verse_num = int(v_id)
-                elif item.name == "ve":
-                    save_current_verse()
-            elif isinstance(item, bs4.NavigableString):
-                if current_verse_num is not None:
-                    current_verse_text_parts.append(item)
+        def traverse(el):
+            nonlocal current_chapter, current_verse_num
+            tag = get_tag_name(el.tag)
+            
+            if tag == "c":
+                save_current_verse()
+                c_id = el.attrib.get("id")
+                if c_id and c_id.isdigit():
+                    current_chapter = int(c_id)
+            elif tag == "v":
+                save_current_verse()
+                v_id = el.attrib.get("id")
+                if v_id and v_id.isdigit():
+                    current_verse_num = int(v_id)
+            elif tag == "ve":
+                save_current_verse()
+                current_verse_num = None
+                
+            if tag not in ("f", "x"):
+                if current_verse_num is not None and el.text:
+                    current_verse_text_parts.append(el.text)
+                for child in el:
+                    traverse(child)
                     
+            if current_verse_num is not None and el.tail:
+                current_verse_text_parts.append(el.tail)
+
+        # Traverse book tag children
+        traverse(book_tag)
         save_current_verse()
         
-        # Insert all verses and WEB translations for the current book
-        for v in parsed_verses:
+    # Bulk insert verses and translations in batches to prevent potential memory or limit issues
+    if parsed_verses:
+        batch_size = 5000
+        logger.info(f"Bulk inserting {len(parsed_verses)} verses into database...")
+        for i in range(0, len(parsed_verses), batch_size):
+            batch = parsed_verses[i : i + batch_size]
             conn.execute(
                 text("INSERT INTO verse (verse_id, book_id, chapter, verse_number, original_verse, address_code) "
                      "VALUES (:verse_id, :book_id, :chapter, :verse_number, :original_verse, :address_code)"),
-                {
-                    "verse_id": v["verse_id"],
-                    "book_id": v["book_id"],
-                    "chapter": v["chapter"],
-                    "verse_number": v["verse_number"],
-                    "original_verse": v["original_verse"],
-                    "address_code": v["address_code"]
-                }
+                [
+                    {
+                        "verse_id": v["verse_id"],
+                        "book_id": v["book_id"],
+                        "chapter": v["chapter"],
+                        "verse_number": v["verse_number"],
+                        "original_verse": v["original_verse"],
+                        "address_code": v["address_code"]
+                    }
+                    for v in batch
+                ]
             )
             conn.execute(
                 text("INSERT INTO verse_translation (verse_id, version_code, text) "
                      "VALUES (:verse_id, 'WEB', :text)"),
-                {
-                    "verse_id": v["verse_id"],
-                    "text": v["text"]
-                }
+                [
+                    {
+                        "verse_id": v["verse_id"],
+                        "text": v["text"]
+                    }
+                    for v in batch
+                ]
             )
             
+        # Parse and bulk-insert original language words
+        all_tokens = []
+        for v in parsed_verses:
             if v["original_verse"]:
                 word_tokens = parse_original_word_tokens(v["original_verse"], verse_id=v["verse_id"])
-                for tok in word_tokens:
-                    conn.execute(
-                        text("INSERT INTO original_word (verse_id, word_index, word_text, lemma, strongs_number) "
-                             "VALUES (:verse_id, :word_index, :word_text, :lemma, :strongs_number)"),
-                        tok
-                    )
+                all_tokens.extend(word_tokens)
+        if all_tokens:
+            logger.info(f"Bulk inserting {len(all_tokens)} original language words...")
+            conn.execute(
+                text("INSERT INTO original_word (verse_id, word_index, word_text, lemma, strongs_number) "
+                     "VALUES (:verse_id, :word_index, :word_text, :lemma, :strongs_number)"),
+                all_tokens
+            )
                     
     logger.info(f"Loaded {len(address_to_id)} canonical verses from USFX XML.")
     return address_to_id
@@ -319,7 +343,7 @@ def parse_json_translations(kjv_path: str, mkjv_path: str, conn, address_to_id: 
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
             
-        inserted_count = 0
+        translations_to_insert = []
         for book in data.get("books", []):
             book_name = book.get("name")
             usfx_id = book_name_to_usfx_id.get(book_name)
@@ -335,17 +359,23 @@ def parse_json_translations(kjv_path: str, mkjv_path: str, conn, address_to_id: 
                     address_code = f"{usfx_id}_{chap_num}_{verse_num}"
                     verse_id = address_to_id.get(address_code)
                     if verse_id:
-                        conn.execute(
-                            text("INSERT INTO verse_translation (verse_id, version_code, text) "
-                                 "VALUES (:verse_id, :version_code, :text)"),
-                            {
-                                "verse_id": verse_id,
-                                "version_code": version_code,
-                                "text": text_val
-                            }
-                        )
-                        inserted_count += 1
-        logger.info(f"Loaded {inserted_count} translation verses for {version_code}.")
+                        translations_to_insert.append({
+                            "verse_id": verse_id,
+                            "version_code": version_code,
+                            "text": text_val
+                        })
+                        
+        if translations_to_insert:
+            batch_size = 5000
+            logger.info(f"Bulk inserting {len(translations_to_insert)} translations for {version_code}...")
+            for i in range(0, len(translations_to_insert), batch_size):
+                batch = translations_to_insert[i : i + batch_size]
+                conn.execute(
+                    text("INSERT INTO verse_translation (verse_id, version_code, text) "
+                         "VALUES (:verse_id, :version_code, :text)"),
+                    batch
+                )
+        logger.info(f"Loaded {len(translations_to_insert)} translation verses for {version_code}.")
 
 def strip_yaml_frontmatter(content: str) -> str:
     lines = content.splitlines()
@@ -361,6 +391,9 @@ def parse_boc_markdown(boc_dir: str) -> list[dict]:
     chunks = []
     md_files.sort()
     
+    # Sort DIR_TO_BOOK keys by length descending to match longest path prefixes first
+    sorted_dir_keys = sorted(DIR_TO_BOOK.keys(), key=len, reverse=True)
+    
     for file_path in md_files:
         filename = os.path.basename(file_path)
         if filename.startswith("_") or filename.lower() in ["index.md", "navigation.md"]:
@@ -368,9 +401,9 @@ def parse_boc_markdown(boc_dir: str) -> list[dict]:
             
         rel_path = os.path.relpath(file_path, boc_dir).replace("\\", "/")
         book_name = "Unknown"
-        for key, bname in DIR_TO_BOOK.items():
+        for key in sorted_dir_keys:
             if rel_path.startswith(key):
-                book_name = bname
+                book_name = DIR_TO_BOOK[key]
                 break
                 
         book_abbrev = BOOK_ABBREVIATIONS.get(book_name, "".join(w[0].upper() for w in book_name.split() if w))
@@ -440,8 +473,25 @@ def parse_boc_markdown(boc_dir: str) -> list[dict]:
     logger.info(f"Parsed {len(chunks)} paragraphs/chunks from Book of Concord markdown.")
     return chunks
 
-def run_ingest_all():
-    settings = Settings()
+def run_ingest_all(
+    usfx_path: str = None,
+    kjv_path: str = None,
+    mkjv_path: str = None,
+    boc_dir: str = None,
+    settings: Settings = None
+):
+    if settings is None:
+        settings = Settings()
+    
+    if usfx_path is None:
+        usfx_path = os.path.join("data", "eng-web.usfx.xml")
+    if kjv_path is None:
+        kjv_path = os.path.join("data", "KJV.json")
+    if mkjv_path is None:
+        mkjv_path = os.path.join("data", "MKJV.json")
+    if boc_dir is None:
+        boc_dir = os.path.join("data", "boc")
+
     engine = get_engine(settings)
     
     # 1. Database seeding
@@ -452,16 +502,12 @@ def run_ingest_all():
         seed_strongs(conn)
         
         # Parse and insert Bible verses (WEB)
-        usfx_path = os.path.join("data", "eng-web.usfx.xml")
         address_to_id = parse_usfx_xml(usfx_path, conn, KEY_THEOLOGICAL_VERSES)
         
         # Parse and insert KJV / MKJV translations
-        kjv_path = os.path.join("data", "KJV.json")
-        mkjv_path = os.path.join("data", "MKJV.json")
         parse_json_translations(kjv_path, mkjv_path, conn, address_to_id)
         
     # 2. Parse Book of Concord markdown chunks
-    boc_dir = os.path.join("data", "boc")
     boc_chunks = parse_boc_markdown(boc_dir)
     
     # 3. ChromaDB collection recreate & indexing

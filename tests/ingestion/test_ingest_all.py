@@ -18,13 +18,21 @@ def test_clear_tables():
     """Verify that clear_tables executes DELETE statements in the correct order."""
     mock_conn = MagicMock()
     clear_tables(mock_conn)
-    # The executions should clear original_word first, then verse_translation, verse, book, strongs_concordance
     calls = [call[0][0].text.lower() for call in mock_conn.execute.call_args_list]
-    assert any("original_word" in c for c in calls)
-    assert any("verse_translation" in c for c in calls)
-    assert any("verse" in c for c in calls)
-    assert any("book" in c for c in calls)
-    assert any("strongs_concordance" in c for c in calls)
+    
+    deleted_tables = []
+    for c in calls:
+        for t in ["original_word", "verse_translation", "verse", "book", "strongs_concordance"]:
+            if t in c:
+                deleted_tables.append(t)
+                break
+                
+    # Verify original_word deleted before verse
+    assert deleted_tables.index("original_word") < deleted_tables.index("verse")
+    # Verify verse_translation deleted before verse
+    assert deleted_tables.index("verse_translation") < deleted_tables.index("verse")
+    # Verify verse deleted before book
+    assert deleted_tables.index("verse") < deleted_tables.index("book")
 
 def test_seed_books():
     """Verify that all 66 books are seeded with correct IDs and testaments."""
@@ -84,16 +92,17 @@ def test_parse_usfx_xml():
         "ROM_3_28": 3
     }
     
-    calls = [call[0][0].text.lower() for call in mock_conn.execute.call_args_list]
+    verse_inserts = [call for call in mock_conn.execute.call_args_list if "insert into verse " in call[0][0].text.lower()]
+    assert len(verse_inserts) == 1
+    assert len(verse_inserts[0][0][1]) == 3
     
-    verse_inserts = [c for c in calls if "insert into verse " in c]
-    assert len(verse_inserts) == 3
+    tx_inserts = [call for call in mock_conn.execute.call_args_list if "insert into verse_translation " in call[0][0].text.lower()]
+    assert len(tx_inserts) == 1
+    assert len(tx_inserts[0][0][1]) == 3
     
-    tx_inserts = [c for c in calls if "insert into verse_translation " in c]
-    assert len(tx_inserts) == 3
-    
-    word_inserts = [c for c in calls if "insert into original_word " in c]
-    assert len(word_inserts) == 2
+    word_inserts = [call for call in mock_conn.execute.call_args_list if "insert into original_word " in call[0][0].text.lower()]
+    assert len(word_inserts) == 1
+    assert len(word_inserts[0][0][1]) == 2
 
 def test_parse_json_translations(tmp_path):
     import json
@@ -144,14 +153,20 @@ def test_parse_json_translations(tmp_path):
     
     parse_json_translations(str(kjv_file), str(mkjv_file), mock_conn, address_to_id)
     
-    calls = [call[0][0].text.lower() for call in mock_conn.execute.call_args_list]
-    inserts = [c for c in calls if "insert into verse_translation " in c]
-    assert len(inserts) == 3
+    inserts = [call for call in mock_conn.execute.call_args_list if "insert into verse_translation " in call[0][0].text.lower()]
+    assert len(inserts) == 2  # 1 call for KJV, 1 call for MKJV
     
-    called_params = [call[0][1] for call in mock_conn.execute.call_args_list if "insert into verse_translation " in call[0][0].text.lower()]
-    assert {"verse_id": 100, "version_code": "KJV", "text": "KJV Gen 1:1 text"} in called_params
-    assert {"verse_id": 101, "version_code": "KJV", "text": "KJV Gen 1:2 text"} in called_params
-    assert {"verse_id": 100, "version_code": "MKJV", "text": "MKJV Gen 1:1 text"} in called_params
+    inserted_params = []
+    for call in inserts:
+        params = call[0][1]
+        if isinstance(params, list):
+            inserted_params.extend(params)
+        else:
+            inserted_params.append(params)
+            
+    assert {"verse_id": 100, "version_code": "KJV", "text": "KJV Gen 1:1 text"} in inserted_params
+    assert {"verse_id": 101, "version_code": "KJV", "text": "KJV Gen 1:2 text"} in inserted_params
+    assert {"verse_id": 100, "version_code": "MKJV", "text": "MKJV Gen 1:1 text"} in inserted_params
 
 def test_parse_boc_markdown(tmp_path):
     ac_dir = tmp_path / "augsburg-confession"
@@ -194,4 +209,76 @@ def test_parse_boc_markdown(tmp_path):
     assert chunks[2]["paragraph_number"] == 1
     assert "Also they teach" in chunks[2]["text"]
     assert chunks[2]["citation"] == "Augsburg Confession, Article II: Of Original Sin, Paragraph 1"
+
+
+@patch("ingestion.ingest_all.Settings")
+@patch("ingestion.ingest_all.get_engine")
+@patch("ingestion.ingest_all.parse_usfx_xml")
+@patch("ingestion.ingest_all.parse_json_translations")
+@patch("ingestion.ingest_all.parse_boc_markdown")
+@patch("ingestion.ingest_all.chromadb.PersistentClient")
+@patch("ingestion.ingest_all.VectorIndexer")
+def test_run_ingest_all(
+    mock_indexer_cls,
+    mock_chroma_client_cls,
+    mock_parse_boc,
+    mock_parse_json,
+    mock_parse_usfx,
+    mock_get_engine,
+    mock_settings_cls
+):
+    """Verify run_ingest_all coordinates database seeding, file parsing, and ChromaDB indexing."""
+    mock_settings = MagicMock()
+    mock_settings.primary_search_version = "WEB"
+    mock_settings.chroma_db_path = "./test_chroma"
+    mock_settings_cls.return_value = mock_settings
+    
+    mock_engine = MagicMock()
+    mock_get_engine.return_value = mock_engine
+    mock_conn = mock_engine.begin.return_value.__enter__.return_value
+    
+    mock_parse_usfx.return_value = {"GEN_1_1": 1}
+    mock_parse_boc.return_value = [
+        {
+            "text": "AC chunk text",
+            "book": "Augsburg Confession",
+            "article_id": "AC_I",
+            "paragraph_number": 1,
+            "citation": "AC I, 1"
+        }
+    ]
+    
+    mock_nt_conn = mock_engine.connect.return_value.__enter__.return_value
+    mock_rows = MagicMock()
+    mock_rows.mappings.return_value.all.return_value = [
+        {
+            "verse_id": 1,
+            "address_code": "MAT_1_1",
+            "chapter": 1,
+            "verse_number": 1,
+            "book_name": "Matthew",
+            "text": "The book of the generation of Jesus Christ"
+        }
+    ]
+    mock_nt_conn.execute.return_value = mock_rows
+    
+    mock_indexer = MagicMock()
+    mock_indexer_cls.return_value = mock_indexer
+    
+    mock_chroma = MagicMock()
+    mock_chroma_client_cls.return_value = mock_chroma
+    
+    run_ingest_all()
+    
+    assert mock_engine.begin.call_count == 1
+    mock_parse_usfx.assert_called_once()
+    mock_parse_json.assert_called_once()
+    mock_parse_boc.assert_called_once()
+    
+    assert mock_chroma.delete_collection.call_count == 2
+    assert mock_chroma.create_collection.call_count == 2
+    
+    mock_indexer.index_confessional_batch.assert_called_once_with(mock_parse_boc.return_value)
+    mock_indexer.index_biblical_batch.assert_called_once()
+
 
