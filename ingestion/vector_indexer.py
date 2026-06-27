@@ -42,7 +42,16 @@ class VectorIndexer:
                 "paragraph_number": c["paragraph_number"],
                 "citation": c["citation"]
             } for c in chunks]
-            ids = [f"{c['book']}_{c['article_id']}_{c['paragraph_number']}" for c in chunks]
+            seen = {}
+            ids = []
+            for c in chunks:
+                base_id = f"{c['book']}_{c['article_id']}_{c['paragraph_number']}"
+                if base_id in seen:
+                    seen[base_id] += 1
+                    ids.append(f"{base_id}_{seen[base_id]}")
+                else:
+                    seen[base_id] = 0
+                    ids.append(base_id)
             
             collection.add(
                 documents=texts,
