@@ -1,7 +1,7 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 import pytest
 from sqlalchemy.exc import OperationalError
-from database.queries import fetch_parallel_translations
+from database.queries import fetch_parallel_translations, fetch_single_translation
 
 def test_fetch_parallel_translations():
     """Verify that parallel translations are queried and returned correctly."""
@@ -46,7 +46,6 @@ def test_fetch_parallel_translations_exception():
 
 def test_fetch_single_translation(db_engine):
     """fetch_single_translation returns verse text for a specific version."""
-    from database.queries import fetch_single_translation
     from sqlalchemy import text
     # Seed a known verse
     with db_engine.connect() as conn:
@@ -61,3 +60,10 @@ def test_fetch_single_translation(db_engine):
 
     result_missing = fetch_single_translation(db_engine, 9901, "MKJV")
     assert result_missing == ""
+
+
+def test_fetch_single_translation_exception_returns_empty(db_engine):
+    """fetch_single_translation returns empty string on DB error (does not raise)."""
+    with patch.object(db_engine, "connect", side_effect=OperationalError("err", None, None)):
+        result = fetch_single_translation(db_engine, 9901, "WEB")
+    assert result == ""
