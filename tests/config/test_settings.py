@@ -39,6 +39,8 @@ def test_settings_default_values(monkeypatch):
     monkeypatch.delenv("OLLAMA_NUM_PREDICT", raising=False)
     monkeypatch.delenv("OLLAMA_TEMPERATURE", raising=False)
     monkeypatch.delenv("OLLAMA_NUM_CTX", raising=False)
+    monkeypatch.delenv("RAG_CONFESSIONAL_K", raising=False)
+    monkeypatch.delenv("RAG_BIBLICAL_K", raising=False)
     
     settings = Settings()
     assert settings.database_url == "postgresql+psycopg://user:password@localhost:5432/lutheran_db"
@@ -49,3 +51,17 @@ def test_settings_default_values(monkeypatch):
     assert settings.ollama_num_predict == 150
     assert settings.ollama_temperature == 0.0
     assert settings.ollama_num_ctx == 1024
+    assert settings.rag_confessional_k == 3
+    assert settings.rag_biblical_k == 3
+
+
+def test_settings_rag_k_values(monkeypatch):
+    """
+    Test that RAG settings correctly load configuration values from environment variables.
+    """
+    monkeypatch.setenv("RAG_CONFESSIONAL_K", "5")
+    monkeypatch.setenv("RAG_BIBLICAL_K", "2")
+    settings = Settings()
+    assert settings.rag_confessional_k == 5
+    assert settings.rag_biblical_k == 2
+
