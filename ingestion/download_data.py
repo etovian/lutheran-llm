@@ -1,10 +1,8 @@
-import os
+from pathlib import Path
 import time
 import logging
 import requests
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 BIBLE_FILES = [
@@ -54,21 +52,26 @@ DEFAULT_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
 
-def download_file(url: str, dest_path: str, max_retries: int = 3, backoff_factor: float = 0.5):
+def download_file(
+    url: str, 
+    dest_path: str | Path, 
+    max_retries: int = 3, 
+    backoff_factor: float = 0.5, 
+    session: requests.Session = None
+):
     """Downloads a file from url and saves it to dest_path with retries and backoff."""
-    parent_dir = os.path.dirname(dest_path)
-    if parent_dir:
-        os.makedirs(parent_dir, exist_ok=True)
+    dest_path = Path(dest_path)
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+
+    getter = session.get if session else requests.get
 
     for attempt in range(max_retries + 1):
         try:
             logger.info(f"Downloading {url} (attempt {attempt + 1}/{max_retries + 1})")
-            response = requests.get(url, headers=DEFAULT_HEADERS, timeout=30)
+            response = getter(url, headers=DEFAULT_HEADERS, timeout=30)
             response.raise_for_status()
             
-            with open(dest_path, "w", encoding="utf-8") as f:
-                f.write(response.text)
-            
+            dest_path.write_text(response.text, encoding="utf-8")
             logger.info(f"Successfully downloaded to {dest_path}")
             return
         except Exception as e:
@@ -79,24 +82,26 @@ def download_file(url: str, dest_path: str, max_retries: int = 3, backoff_factor
             logger.warning(f"Error downloading {url}: {e}. Retrying in {sleep_time}s...")
             time.sleep(sleep_time)
 
-def download_all(dest_dir: str = "data"):
+def download_all(dest_dir: str | Path = "data"):
     """Downloads all Bible and Book of Concord files to the dest_dir."""
-    logger.info(f"Starting ingestion download to cache directory: {dest_dir}")
+    dest_path_dir = Path(dest_dir)
+    logger.info(f"Starting ingestion download to cache directory: {dest_path_dir}")
     
-    # 1. Download Bible files
-    for url in BIBLE_FILES:
-        filename = url.split("/")[-1]
-        dest_path = os.path.join(dest_dir, filename)
-        download_file(url, dest_path)
-        
-    # 2. Download Book of Concord files
-    for url, rel_path in BOC_FILES:
-        # rel_path contains forward slashes, replace with OS specific separator
-        parts = rel_path.split("/")
-        dest_path = os.path.join(dest_dir, *parts)
-        download_file(url, dest_path)
-        
+    with requests.Session() as session:
+        # 1. Download Bible files
+        for url in BIBLE_FILES:
+            filename = url.split("/")[-1]
+            dest_path = dest_path_dir / filename
+            download_file(url, dest_path, session=session)
+            
+        # 2. Download Book of Concord files
+        for url, rel_path in BOC_FILES:
+            dest_path = dest_path_dir / rel_path
+            download_file(url, dest_path, session=session)
+            
     logger.info("All files downloaded successfully.")
 
 if __name__ == "__main__":
+    # Configure logging only inside execution block to prevent global side-effects on import
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
     download_all()
