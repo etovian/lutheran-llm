@@ -119,3 +119,69 @@ def test_run_orchestrator_fallback_details(mock_retrieve_context):
     assert "Justified by faith" in res
     assert "δικαιοῦσθαι" in res
     assert "</details>" in res
+
+
+@patch("pipeline.orchestrator.retrieve_context")
+def test_run_orchestrator_multiple_citations(mock_retrieve_context):
+    """Verify that run_orchestrator formats and includes multiple scripture citations and translations in the LLM prompt and deep-dive HTML."""
+    mock_chroma = MagicMock()
+    mock_db = MagicMock()
+    mock_llm = MagicMock()
+    mock_embed_model = MagicMock()
+    
+    # Configure mock retrieve_context to return multiple scriptures
+    mock_retrieve_context.return_value = {
+        "confessional": [{"text": "Freely justified", "citation": "AC IV, 1"}],
+        "scriptures": [
+            {
+                "citation": "Romans 3:28",
+                "translations": {"WEB": "Justified by faith"},
+                "lexicon": [{"word_text": "δικαιοῦσθαι", "lemma": "δικαιόω", "strongs_number": "G1344", "definition": "to justify"}],
+            },
+            {
+                "citation": "Ephesians 2:8",
+                "translations": {"WEB": "By grace you have been saved through faith"},
+                "lexicon": [{"word_text": "χάριτί", "lemma": "χάρις", "strongs_number": "G5485", "definition": "grace"}],
+            }
+        ]
+    }
+    
+    # LLM returns ONLY summary, triggering programmatic fallback deep-dive details appending
+    mock_llm_response = MagicMock()
+    mock_llm_response.content = "Summary: We are saved and justified by faith through grace."
+    mock_llm.invoke.return_value = mock_llm_response
+    
+    res = run_orchestrator(
+        chroma_client=mock_chroma,
+        db_engine=mock_db,
+        llm=mock_llm,
+        query="Faith and grace query",
+        embed_model=mock_embed_model
+    )
+    
+    # Verify that the LLM call prompt contained both scriptures and translations, but no lexicons
+    mock_llm.invoke.assert_called_once()
+    messages = mock_llm.invoke.call_args[0][0]
+    prompt_content = messages[0].content
+    
+    assert "Romans 3:28" in prompt_content
+    assert "Justified by faith" in prompt_content
+    assert "Ephesians 2:8" in prompt_content
+    assert "By grace you have been saved through faith" in prompt_content
+    assert "δικαιοῦσθαι" not in prompt_content
+    assert "χάριτί" not in prompt_content
+    
+    # Verify programmatic deep-dive details output contains both scriptures and their lexicons
+    assert "Summary: We are saved and justified by faith through grace." in res
+    assert "<details>" in res
+    assert "<summary>Theological Depth</summary>" in res
+    assert "AC IV, 1" in res
+    
+    assert "Romans 3:28" in res
+    assert "Justified by faith" in res
+    assert "δικαιοῦσθαι" in res
+    
+    assert "Ephesians 2:8" in res
+    assert "By grace you have been saved through faith" in res
+    assert "χάριτί" in res
+    assert "</details>" in res
