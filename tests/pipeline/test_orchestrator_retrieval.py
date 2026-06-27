@@ -31,10 +31,7 @@ def test_retrieve_context():
     )
     
     # Mock DB queries.py response
-    mock_db_res = {
-        "translations": {"WEB": "We maintain that a man is justified...", "KJV": "Therefore we conclude..."},
-        "lexicon": [{"word_text": "λογιζόμεθα", "strongs_number": "G3049", "definition": "To reckon"}]
-    }
+    mock_db_res = {"WEB": "We maintain that a man is justified...", "KJV": "Therefore we conclude..."}
     
     ctx = retrieve_context(
         chroma_client=mock_chroma,
@@ -54,7 +51,7 @@ def test_retrieve_context():
     assert "translations" in ctx["scriptures"][0]
     assert ctx["scriptures"][0]["translations"]["WEB"] == "We maintain that a man is justified..."
     assert ctx["scriptures"][0]["translations"]["KJV"] == "Therefore we conclude..."
-    assert ctx["scriptures"][0]["lexicon"][0]["word_text"] == "λογιζόμεθα"
+    assert "lexicon" not in ctx["scriptures"][0]
     assert ctx["scriptures"][0]["citation"] == "Romans 3:28"
 
 
@@ -151,14 +148,8 @@ def test_retrieve_context_multiple_citations():
     )
     
     mock_db_res_map = {
-        1: {
-            "translations": {"WEB": "First verse WEB", "KJV": "First verse KJV"},
-            "lexicon": [{"word_text": "λογιζόμεθα", "strongs_number": "G3049", "definition": "To reckon"}]
-        },
-        2: {
-            "translations": {"WEB": "Second verse WEB", "KJV": "Second verse KJV"},
-            "lexicon": [{"word_text": "χάριτί", "strongs_number": "G5485", "definition": "grace"}]
-        }
+        1: {"WEB": "First verse WEB", "KJV": "First verse KJV"},
+        2: {"WEB": "Second verse WEB", "KJV": "Second verse KJV"}
     }
     
     def mock_db_lookup(eng, vid):
@@ -177,8 +168,8 @@ def test_retrieve_context_multiple_citations():
     
     assert ctx["scriptures"][0]["citation"] == "Romans 3:28"
     assert ctx["scriptures"][0]["translations"]["WEB"] == "First verse WEB"
-    assert ctx["scriptures"][0]["lexicon"][0]["word_text"] == "λογιζόμεθα"
+    assert "lexicon" not in ctx["scriptures"][0]
     
     assert ctx["scriptures"][1]["citation"] == "Ephesians 2:8"
     assert ctx["scriptures"][1]["translations"]["WEB"] == "Second verse WEB"
-    assert ctx["scriptures"][1]["lexicon"][0]["word_text"] == "χάριτί"
+    assert "lexicon" not in ctx["scriptures"][1]

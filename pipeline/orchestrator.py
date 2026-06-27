@@ -2,7 +2,7 @@ import logging
 import html
 from typing import Any, Callable, Dict, List, Optional
 from config.settings import Settings
-from database.queries import fetch_parallel_verses_and_lexicon
+from database.queries import fetch_parallel_translations
 from langchain_core.messages import SystemMessage, HumanMessage
 from pipeline.prompt import SYSTEM_PROMPT
 from pipeline.guardrails import detect_pastoral_crisis, get_redirection_response
@@ -37,7 +37,7 @@ def retrieve_context(
         dict: A dictionary containing 'confessional' chunk details and parallel 'scriptures' info.
     """
     if db_lookup_func is None:
-        db_lookup_func = fetch_parallel_verses_and_lexicon
+        db_lookup_func = fetch_parallel_translations
         
     if confessional_k is None:
         confessional_k = settings.rag_confessional_k
@@ -73,16 +73,17 @@ def retrieve_context(
             if verse_id is not None:
                 scripture_data = db_lookup_func(db_engine, verse_id)
                 if scripture_data:
-                    scripture_data = dict(scripture_data)
                     book_name = meta.get("book_name", "Unknown Book")
                     chapter = meta.get("chapter", 0)
                     verse_number = meta.get("verse_number", 0)
-                    scripture_data["citation"] = f"{book_name} {chapter}:{verse_number}"
-                    scripture_data["book_name"] = book_name
-                    scripture_data["chapter"] = chapter
-                    scripture_data["verse_number"] = verse_number
-                    scripture_data["address_code"] = meta.get("address_code")
-                    scriptures.append(scripture_data)
+                    scriptures.append({
+                        "citation": f"{book_name} {chapter}:{verse_number}",
+                        "translations": dict(scripture_data),
+                        "book_name": book_name,
+                        "chapter": chapter,
+                        "verse_number": verse_number,
+                        "address_code": meta.get("address_code")
+                    })
                     
     except Exception as e:
         logger.error("Failed to retrieve context for query %r: %s", query, e, exc_info=True)

@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     ollama_num_predict: int = 512
     ollama_temperature: float = 0.0
     ollama_num_ctx: int = 1024
-    rag_confessional_k: int = 3
-    rag_biblical_k: int = 3
+    rag_confessional_k: int = 2
+    rag_biblical_k: int = 10
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")

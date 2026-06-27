@@ -51,8 +51,8 @@ def test_settings_default_values(monkeypatch):
     assert settings.ollama_num_predict == 512
     assert settings.ollama_temperature == 0.0
     assert settings.ollama_num_ctx == 1024
-    assert settings.rag_confessional_k == 3
-    assert settings.rag_biblical_k == 3
+    assert settings.rag_confessional_k == 2
+    assert settings.rag_biblical_k == 10
 
 
 def test_settings_rag_k_values(monkeypatch):
