@@ -9,7 +9,7 @@ class OllamaChatModel:
         self.model_name = model_name
         self.base_url = base_url
         self.options = options or {
-            "num_predict": 150,
+            "num_predict": 512,
             "temperature": 0.0,
             "num_ctx": 1024
         }

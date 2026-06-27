@@ -48,7 +48,7 @@ def test_settings_default_values(monkeypatch):
     assert settings.chroma_db_path == "./.chroma"
     assert settings.ollama_model == "llama3"
     assert settings.ollama_base_url == "http://localhost:11434"
-    assert settings.ollama_num_predict == 150
+    assert settings.ollama_num_predict == 512
     assert settings.ollama_temperature == 0.0
     assert settings.ollama_num_ctx == 1024
     assert settings.rag_confessional_k == 3

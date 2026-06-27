@@ -36,7 +36,7 @@ def test_ollama_chat_model_invoke_success(mock_post):
             ],
             "stream": False,
             "options": {
-                "num_predict": 150,
+                "num_predict": 512,
                 "temperature": 0.0,
                 "num_ctx": 1024
             }

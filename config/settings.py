@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     chroma_db_path: str = "./.chroma"
     ollama_model: str = "llama3"
     ollama_base_url: str = "http://localhost:11434"
-    ollama_num_predict: int = 150
+    ollama_num_predict: int = 512
     ollama_temperature: float = 0.0
     ollama_num_ctx: int = 1024
     rag_confessional_k: int = 3
