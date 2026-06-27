@@ -1,4 +1,6 @@
 import logging
+import html
+from typing import Any, Callable, Dict, List, Optional
 from config.settings import Settings
 from database.queries import fetch_parallel_verses_and_lexicon
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -9,14 +11,14 @@ logger = logging.getLogger(__name__)
 settings = Settings()
 
 def retrieve_context(
-    chroma_client, 
-    db_engine, 
+    chroma_client: Any, 
+    db_engine: Any, 
     query: str, 
-    embed_model, 
-    confessional_k: int = None, 
-    biblical_k: int = None, 
-    db_lookup_func=None
-) -> dict:
+    embed_model: Any, 
+    confessional_k: Optional[int] = None, 
+    biblical_k: Optional[int] = None, 
+    db_lookup_func: Optional[Callable[..., Any]] = None
+) -> Dict[str, Any]:
     """
     Retrieve semantic context from ChromaDB collections and fetch parallel bible verses
     and lexicon definitions from the relational database.
@@ -45,7 +47,8 @@ def retrieve_context(
     try:
         query_embedding = embed_model.encode(query).tolist()
         
-        conf_collection = chroma_client.get_collection("confessional_collection")
+        conf_coll_name = getattr(settings, "chroma_confessional_collection", "confessional_collection")
+        conf_collection = chroma_client.get_collection(conf_coll_name)
         conf_res = conf_collection.query(query_embeddings=[query_embedding], n_results=confessional_k)
         
         conf_docs = conf_res.get("documents", [[]])[0] if conf_res.get("documents") else []
@@ -58,7 +61,8 @@ def retrieve_context(
                 "citation": meta.get("citation", "Unknown Citation")
             })
             
-        bib_collection = chroma_client.get_collection("biblical_collection")
+        bib_coll_name = getattr(settings, "chroma_biblical_collection", "biblical_collection")
+        bib_collection = chroma_client.get_collection(bib_coll_name)
         bib_res = bib_collection.query(query_embeddings=[query_embedding], n_results=biblical_k)
         
         bib_metas = bib_res.get("metadatas", [[]])[0] if bib_res.get("metadatas") else []
@@ -69,6 +73,7 @@ def retrieve_context(
             if verse_id is not None:
                 scripture_data = db_lookup_func(db_engine, verse_id)
                 if scripture_data:
+                    scripture_data = dict(scripture_data)
                     book_name = meta.get("book_name", "Unknown Book")
                     chapter = meta.get("chapter", 0)
                     verse_number = meta.get("verse_number", 0)
@@ -89,63 +94,7 @@ def retrieve_context(
     }
 
 
-def format_context(retrieved_ctx: dict) -> str:
-    """
-    Format retrieved confessional chunks and scripture context into a structured string.
-    
-    Args:
-        retrieved_ctx (dict): The dictionary containing retrieved context.
-        
-    Returns:
-        str: Formatted context string.
-    """
-    lines = []
-    
-    # Confessional chunks
-    lines.append("--- CONFESSIONAL CONTEXT ---")
-    confessional_chunks = retrieved_ctx.get("confessional", [])
-    if confessional_chunks:
-        for chunk in confessional_chunks:
-            lines.append(f"Source: {chunk.get('citation')}")
-            lines.append(f"Content: {chunk.get('text')}\n")
-    else:
-        lines.append("No confessional context found.\n")
-        
-    # Scripture Context
-    lines.append("--- SCRIPTURE CONTEXT ---")
-    scriptures = retrieved_ctx.get("scriptures", [])
-    if scriptures:
-        for scripture in scriptures:
-            citation = scripture.get("citation", "Unknown Scripture")
-            lines.append(f"Citation: {citation}")
-            translations = scripture.get("translations", {})
-            if translations:
-                for ver, text_val in translations.items():
-                    lines.append(f"[{ver}]: {text_val}")
-            else:
-                lines.append("No parallel scripture translations found.")
-            
-            # Lexicon
-            lexicon = scripture.get("lexicon", [])
-            if lexicon:
-                lines.append("Original language word analysis:")
-                for lex in lexicon:
-                    lines.append(
-                        f"- Word: {lex.get('word_text')}, Lemma: {lex.get('lemma')}, "
-                        f"Strongs: {lex.get('strongs_number')}, "
-                        f"Definition: {lex.get('definition')}"
-                    )
-            else:
-                lines.append("No lexicon analysis found.")
-            lines.append("")
-    else:
-        lines.append("No parallel scripture translations found.")
-        lines.append("No lexicon analysis found.")
-        
-    return "\n".join(lines)
-
-
-def format_llm_context(retrieved_ctx: dict) -> str:
+def format_llm_context(retrieved_ctx: Dict[str, Any]) -> str:
     """
     Format retrieved confessional chunks and scripture context (excluding lexicon)
     into a structured string to minimize context window size for LLM generation.
@@ -182,7 +131,7 @@ def format_llm_context(retrieved_ctx: dict) -> str:
     return "\n".join(lines)
 
 
-def format_deep_dive_details(retrieved_ctx: dict) -> str:
+def format_deep_dive_details(retrieved_ctx: Dict[str, Any]) -> str:
     """
     Programmatically construct the HTML collapsible deep-dive details block.
     """
@@ -195,8 +144,8 @@ def format_deep_dive_details(retrieved_ctx: dict) -> str:
     confessional = retrieved_ctx.get("confessional", [])
     if confessional:
         for chunk in confessional:
-            citation = chunk.get("citation", "Book of Concord")
-            text_val = chunk.get("text", "")
+            citation = html.escape(chunk.get("citation", "Book of Concord"))
+            text_val = html.escape(chunk.get("text", ""))
             lines.append(f"<p><strong>{citation}</strong>: <em>\"{text_val}\"</em></p>")
     else:
         lines.append("<p>No confessional citations found.</p>")
@@ -206,13 +155,15 @@ def format_deep_dive_details(retrieved_ctx: dict) -> str:
     scriptures = retrieved_ctx.get("scriptures", [])
     if scriptures:
         for scripture in scriptures:
-            citation = scripture.get("citation", "Unknown Scripture")
+            citation = html.escape(scripture.get("citation", "Unknown Scripture"))
             lines.append(f"<h5>{citation}</h5>")
             translations = scripture.get("translations", {})
             if translations:
                 lines.append("<ul>")
                 for ver, text_val in translations.items():
-                    lines.append(f"<li>[{ver}]: {text_val}</li>")
+                    escaped_ver = html.escape(ver)
+                    escaped_text = html.escape(text_val)
+                    lines.append(f"<li>[{escaped_ver}]: {escaped_text}</li>")
                 lines.append("</ul>")
             else:
                 lines.append("<p>No parallel scripture translations found.</p>")
@@ -227,14 +178,18 @@ def format_deep_dive_details(retrieved_ctx: dict) -> str:
             lexicon = scripture.get("lexicon", [])
             if lexicon:
                 has_any_lexicon = True
-                citation = scripture.get("citation", "Unknown Scripture")
+                citation = html.escape(scripture.get("citation", "Unknown Scripture"))
                 lines.append(f"<h5>{citation}</h5>")
                 lines.append("<ul>")
                 for lex in lexicon:
+                    word_text = html.escape(lex.get('word_text', ''))
+                    lemma = html.escape(lex.get('lemma', ''))
+                    strongs_number = html.escape(lex.get('strongs_number', ''))
+                    definition = html.escape(lex.get('definition', ''))
                     lines.append(
-                        f"<li>Word: {lex.get('word_text')}, Lemma: {lex.get('lemma')}, "
-                        f"Strongs: {lex.get('strongs_number')}, "
-                        f"Definition: {lex.get('definition')}</li>"
+                        f"<li>Word: {word_text}, Lemma: {lemma}, "
+                        f"Strongs: {strongs_number}, "
+                        f"Definition: {definition}</li>"
                     )
                 lines.append("</ul>")
         if not has_any_lexicon:
@@ -247,13 +202,13 @@ def format_deep_dive_details(retrieved_ctx: dict) -> str:
 
 
 def run_orchestrator(
-    chroma_client, 
-    db_engine, 
-    llm, 
+    chroma_client: Any, 
+    db_engine: Any, 
+    llm: Any, 
     query: str, 
-    embed_model,
-    confessional_k: int = None,
-    biblical_k: int = None
+    embed_model: Any,
+    confessional_k: Optional[int] = None,
+    biblical_k: Optional[int] = None
 ) -> str:
     """
     Execute the RAG retrieval, context formatting, and LLM orchestration loop.
