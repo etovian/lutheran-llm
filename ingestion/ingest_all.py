@@ -164,12 +164,27 @@ def seed_books(conn):
 
 def seed_strongs(conn):
     logger.info("Seeding Strong's concordance definitions...")
-    for st in STRONGS_CONCORDANCE:
-        conn.execute(
-            text("INSERT INTO strongs_concordance (strongs_number, pronunciation, definition, derivation) "
-                 "VALUES (:strongs_number, :pronunciation, :definition, :derivation)"),
-            st
-        )
+    extracted_strongs = set()
+    for verse in KEY_THEOLOGICAL_VERSES.values():
+        matches = re.findall(r"\[([GH]\d+)\]", verse)
+        extracted_strongs.update(matches)
+        
+    predefined_numbers = {st["strongs_number"] for st in STRONGS_CONCORDANCE}
+    all_strongs = list(STRONGS_CONCORDANCE)
+    for num in sorted(extracted_strongs):
+        if num not in predefined_numbers:
+            all_strongs.append({
+                "strongs_number": num,
+                "pronunciation": "transliterated",
+                "definition": f"Transliterated word for Strong's {num}",
+                "derivation": "unknown"
+            })
+            
+    conn.execute(
+        text("INSERT INTO strongs_concordance (strongs_number, pronunciation, definition, derivation) "
+             "VALUES (:strongs_number, :pronunciation, :definition, :derivation)"),
+        all_strongs
+    )
 
 def get_tag_name(tag: str) -> str:
     if tag.startswith("{"):

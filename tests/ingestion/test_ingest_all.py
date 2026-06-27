@@ -48,20 +48,29 @@ def test_seed_books():
     assert called_books[-1] == {"book_id": 66, "name": "Revelation of John", "testament": "NT"}
 
 def test_seed_strongs():
-    """Verify that the 20 default + 6 new Strong's definitions are seeded."""
+    """Verify that the default, new, and dynamically extracted Strong's definitions are seeded."""
     mock_conn = MagicMock()
     seed_strongs(mock_conn)
     
-    assert mock_conn.execute.call_count == 26
+    assert mock_conn.execute.call_count == 1
     
-    # Check that new ones are present
-    called_strongs = [call[0][1]["strongs_number"] for call in mock_conn.execute.call_args_list]
-    assert "G907" in called_strongs
-    assert "G3067" in called_strongs
-    assert "G3824" in called_strongs
-    assert "G4983" in called_strongs
-    assert "G2842" in called_strongs
-    assert "G1722" in called_strongs
+    inserted_list = mock_conn.execute.call_args[0][1]
+    assert isinstance(inserted_list, list)
+    
+    inserted_strongs = {st["strongs_number"] for st in inserted_list}
+    
+    # Predefined / pre-added ones
+    assert "G907" in inserted_strongs
+    assert "G3067" in inserted_strongs
+    assert "G3824" in inserted_strongs
+    assert "G4983" in inserted_strongs
+    assert "G2842" in inserted_strongs
+    assert "G1722" in inserted_strongs
+    
+    # Dynamically extracted ones
+    assert "G2532" in inserted_strongs
+    assert "G1343" in inserted_strongs
+    assert "G4160" in inserted_strongs
 
 def test_parse_usfx_xml():
     xml_content = """<?xml version="1.0" encoding="UTF-8"?>
