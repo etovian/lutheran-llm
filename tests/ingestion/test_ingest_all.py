@@ -3,7 +3,6 @@ import pytest
 from ingestion.ingest_all import (
     clear_tables,
     seed_books,
-    seed_strongs,
     parse_usfx_xml,
     parse_json_translations,
     parse_boc_markdown,
@@ -22,13 +21,11 @@ def test_clear_tables():
     
     deleted_tables = []
     for c in calls:
-        for t in ["original_word", "verse_translation", "verse", "book", "strongs_concordance"]:
+        for t in ["verse_translation", "verse", "book"]:
             if t in c:
                 deleted_tables.append(t)
                 break
                 
-    # Verify original_word deleted before verse
-    assert deleted_tables.index("original_word") < deleted_tables.index("verse")
     # Verify verse_translation deleted before verse
     assert deleted_tables.index("verse_translation") < deleted_tables.index("verse")
     # Verify verse deleted before book
@@ -47,30 +44,7 @@ def test_seed_books():
     assert called_books[0] == {"book_id": 1, "name": "Genesis", "testament": "OT"}
     assert called_books[-1] == {"book_id": 66, "name": "Revelation of John", "testament": "NT"}
 
-def test_seed_strongs():
-    """Verify that the default, new, and dynamically extracted Strong's definitions are seeded."""
-    mock_conn = MagicMock()
-    seed_strongs(mock_conn)
-    
-    assert mock_conn.execute.call_count == 1
-    
-    inserted_list = mock_conn.execute.call_args[0][1]
-    assert isinstance(inserted_list, list)
-    
-    inserted_strongs = {st["strongs_number"] for st in inserted_list}
-    
-    # Predefined / pre-added ones
-    assert "G907" in inserted_strongs
-    assert "G3067" in inserted_strongs
-    assert "G3824" in inserted_strongs
-    assert "G4983" in inserted_strongs
-    assert "G2842" in inserted_strongs
-    assert "G1722" in inserted_strongs
-    
-    # Dynamically extracted ones
-    assert "G2532" in inserted_strongs
-    assert "G1343" in inserted_strongs
-    assert "G4160" in inserted_strongs
+
 
 def test_parse_usfx_xml():
     xml_content = """<?xml version="1.0" encoding="UTF-8"?>
@@ -89,11 +63,8 @@ def test_parse_usfx_xml():
     </usfx>
     """
     mock_conn = MagicMock()
-    key_verses = {
-        "ROM_3_28": "λογιζόμεθα[G3049] οὖν[G3767]"
-    }
     
-    addr_to_id = parse_usfx_xml(xml_content, mock_conn, key_verses)
+    addr_to_id = parse_usfx_xml(xml_content, mock_conn)
     
     assert addr_to_id == {
         "GEN_1_1": 1,
@@ -110,8 +81,7 @@ def test_parse_usfx_xml():
     assert len(tx_inserts[0][0][1]) == 3
     
     word_inserts = [call for call in mock_conn.execute.call_args_list if "insert into original_word " in call[0][0].text.lower()]
-    assert len(word_inserts) == 1
-    assert len(word_inserts[0][0][1]) == 2
+    assert len(word_inserts) == 0
 
 def test_parse_json_translations(tmp_path):
     import json

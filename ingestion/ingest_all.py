@@ -8,7 +8,8 @@ from sqlalchemy import text
 
 from config.settings import Settings
 from database.connection import get_engine
-from ingestion.parse_bible import parse_original_word_tokens
+from config.settings import Settings
+from database.connection import get_engine
 from ingestion.vector_indexer import VectorIndexer
 import chromadb
 
@@ -84,44 +85,6 @@ CANONICAL_BOOKS = [
     (66, "Revelation of John", "NT", "REV")
 ]
 
-STRONGS_CONCORDANCE = [
-    {"strongs_number": "G3049", "pronunciation": "log-id'-zom-a-hee", "definition": "to reckon, count, compute, calculate, take into account", "derivation": "from λογος"},
-    {"strongs_number": "G3767", "pronunciation": "oon", "definition": "therefore, then, now", "derivation": "a particle of transition"},
-    {"strongs_number": "G4102", "pronunciation": "pis'-tis", "definition": "faith, belief, trust, confidence", "derivation": "from πειθω"},
-    {"strongs_number": "G1344", "pronunciation": "dik-ah-yo'-o", "definition": "to justify, declare righteous, show to be righteous", "derivation": "from δικαιος"},
-    {"strongs_number": "G444", "pronunciation": "anth'-ro-pos", "definition": "man, human being, person", "derivation": "from ανηρ"},
-    {"strongs_number": "G5565", "pronunciation": "kho-rece'", "definition": "apart from, separate, without", "derivation": "from χωρος"},
-    {"strongs_number": "G2041", "pronunciation": "er'-gon", "definition": "work, deed, action", "derivation": "from εργω"},
-    {"strongs_number": "G3551", "pronunciation": "nom'-os", "definition": "law, rule, principle", "derivation": "from νεμω"},
-    {"strongs_number": "G3588", "pronunciation": "tay", "definition": "the, this, that", "derivation": "article"},
-    {"strongs_number": "G1063", "pronunciation": "gar", "definition": "for, indeed, because", "derivation": "conjunction"},
-    {"strongs_number": "G5485", "pronunciation": "khar'-ece", "definition": "grace, favor, loving-kindness", "derivation": "from χαιρω"},
-    {"strongs_number": "G2075", "pronunciation": "es-te'", "definition": "ye are", "derivation": "from ειμι"},
-    {"strongs_number": "G4982", "pronunciation": "so'-zo", "definition": "to save, deliver, make whole, preserve", "derivation": "from σως"},
-    {"strongs_number": "G1223", "pronunciation": "dee-ah'", "definition": "through, by means of, on account of", "derivation": "preposition"},
-    {"strongs_number": "G3756", "pronunciation": "ook", "definition": "not, no", "derivation": "negative particle"},
-    {"strongs_number": "G1537", "pronunciation": "ex", "definition": "out of, from, by", "derivation": "preposition"},
-    {"strongs_number": "G2443", "pronunciation": "hin'-ah", "definition": "that, in order that, so that", "derivation": "conjunction"},
-    {"strongs_number": "G3361", "pronunciation": "may", "definition": "not, lest", "derivation": "particle"},
-    {"strongs_number": "G5100", "pronunciation": "tis", "definition": "anyone, someone, a certain one", "derivation": "pronoun"},
-    {"strongs_number": "G2744", "pronunciation": "kow-khah'-om-ahee", "definition": "to boast, glory, exult", "derivation": "from αυχην"},
-    # Added definitions
-    {"strongs_number": "G907", "pronunciation": "bap-tid'-zo", "definition": "to baptize, dip, wash", "derivation": "from a derivative of G911"},
-    {"strongs_number": "G3067", "pronunciation": "loo-tron'", "definition": "bathing, washing, laver", "derivation": "from G3068"},
-    {"strongs_number": "G3824", "pronunciation": "pal-ing-ghen-es-ee'-ah", "definition": "rebirth, regeneration, renovation", "derivation": "from G3825 and G1078"},
-    {"strongs_number": "G4983", "pronunciation": "so'-mah", "definition": "body", "derivation": "from G4982"},
-    {"strongs_number": "G2842", "pronunciation": "koy-nohn-ee'-ah", "definition": "fellowship, communion, sharing", "derivation": "from G2844"},
-    {"strongs_number": "G1722", "pronunciation": "en", "definition": "in, with, by, among", "derivation": "a primary preposition"}
-]
-
-KEY_THEOLOGICAL_VERSES = {
-    "ROM_3_28": "λογιζόμεθα[G3049] οὖν[G3767] πίστει[G4102] δικαιοῦσθαι[G1344] ἄνθρωπον[G444] χωρὶς[G5565] ἔργων[G2041] νόμου[G3551]",
-    "EPH_2_8": "τῇ[G3588] γὰρ[G1063] χάριτί[G5485] ἐστε[G2075] σεσωσμένοι[G4982] διὰ[G1223] πίστεως[G4102]",
-    "EPH_2_9": "οὐκ[G3756] ἐξ[G1537] ἔργων[G2041] ἵνα[G2443] μή[G3361] τις[G5100] καυχήσηται[G2744]",
-    "TIT_3_5": "οὐκ[G3756] ἐξ[G1537] ἔργων[G2041] τῶν[G3588] ἐν[G1722] δικαιοσύνῃ[G1343] ἃ[G3739] ἐποιήσαμεν[G4160] ἡμεῖς[G2249] ἀλλὰ[G235] κατὰ[G2596] τὸ[G3588] αὐτοῦ[G846] ἔλεος[G1656] ἔσωσεν[G4982] ἡμᾶς[G2248] διὰ[G1223] λουτροῦ[G3067] παλιγγενεσίας[G3824] καὶ[G2532] ἀνακαινώσεως[G341] πνεύματος[G4151] ἁγίου[G40]",
-    "1CO_11_24": "καὶ[G2532] εὐχαριστήσας[G2168] ἔκλασεν[G2806] καὶ[G2532] εἶπεν[G2036] λάβετε[G2983] φάγετε[G5315] τοῦτό[G5124] μού[G3450] ἐστιν[G2070] τὸ[G3588] σῶμα[G4983] τὸ[G3588] ὑπὲρ[G5228] ὑμῶν[G5216] κλώμενον[G2806] τοῦτο[G5124] ποιεῖτε[G4160] εἰς[G1519] τὴν[G3588] ἐμὴν[G1699] ἀνάμνησιν[G364]"
-}
-
 DIR_TO_BOOK = {
     "apology": "Apology",
     "augsburg-confession": "Augsburg Confession",
@@ -148,11 +111,9 @@ BOOK_ABBREVIATIONS = {
 
 def clear_tables(conn):
     logger.info("Clearing relational database tables...")
-    conn.execute(text("DELETE FROM original_word"))
     conn.execute(text("DELETE FROM verse_translation"))
     conn.execute(text("DELETE FROM verse"))
     conn.execute(text("DELETE FROM book"))
-    conn.execute(text("DELETE FROM strongs_concordance"))
 
 def seed_books(conn):
     logger.info("Seeding canonical books...")
@@ -162,36 +123,14 @@ def seed_books(conn):
             {"book_id": book_id, "name": name, "testament": testament}
         )
 
-def seed_strongs(conn):
-    logger.info("Seeding Strong's concordance definitions...")
-    extracted_strongs = set()
-    for verse in KEY_THEOLOGICAL_VERSES.values():
-        matches = re.findall(r"\[([GH]\d+)\]", verse)
-        extracted_strongs.update(matches)
-        
-    predefined_numbers = {st["strongs_number"] for st in STRONGS_CONCORDANCE}
-    all_strongs = list(STRONGS_CONCORDANCE)
-    for num in sorted(extracted_strongs):
-        if num not in predefined_numbers:
-            all_strongs.append({
-                "strongs_number": num,
-                "pronunciation": "transliterated",
-                "definition": f"Transliterated word for Strong's {num}",
-                "derivation": "unknown"
-            })
-            
-    conn.execute(
-        text("INSERT INTO strongs_concordance (strongs_number, pronunciation, definition, derivation) "
-             "VALUES (:strongs_number, :pronunciation, :definition, :derivation)"),
-        all_strongs
-    )
+
 
 def get_tag_name(tag: str) -> str:
     if tag.startswith("{"):
         return tag.split("}", 1)[1]
     return tag
 
-def parse_usfx_xml(xml_content_or_path: str, conn, key_verses: dict) -> dict:
+def parse_usfx_xml(xml_content_or_path: str, conn) -> dict:
     logger.info("Parsing USFX XML file...")
     if xml_content_or_path.strip().startswith("<"):
         root = ET.fromstring(xml_content_or_path)
@@ -228,14 +167,13 @@ def parse_usfx_xml(xml_content_or_path: str, conn, key_verses: dict) -> dict:
                 verse_text = " ".join(verse_text.split())
                 
                 address_code = f"{usfx_id}_{current_chapter}_{current_verse_num}"
-                orig_verse = key_verses.get(address_code, "")
                 
                 parsed_verses.append({
                     "verse_id": verse_id_counter,
                     "book_id": book_id_int,
                     "chapter": current_chapter,
                     "verse_number": current_verse_num,
-                    "original_verse": orig_verse,
+                    "original_verse": "",
                     "address_code": address_code,
                     "text": verse_text
                 })
@@ -307,20 +245,6 @@ def parse_usfx_xml(xml_content_or_path: str, conn, key_verses: dict) -> dict:
                     }
                     for v in batch
                 ]
-            )
-            
-        # Parse and bulk-insert original language words
-        all_tokens = []
-        for v in parsed_verses:
-            if v["original_verse"]:
-                word_tokens = parse_original_word_tokens(v["original_verse"], verse_id=v["verse_id"])
-                all_tokens.extend(word_tokens)
-        if all_tokens:
-            logger.info(f"Bulk inserting {len(all_tokens)} original language words...")
-            conn.execute(
-                text("INSERT INTO original_word (verse_id, word_index, word_text, lemma, strongs_number) "
-                     "VALUES (:verse_id, :word_index, :word_text, :lemma, :strongs_number)"),
-                all_tokens
             )
                     
     logger.info(f"Loaded {len(address_to_id)} canonical verses from USFX XML.")
@@ -514,10 +438,9 @@ def run_ingest_all(
     with engine.begin() as conn:
         clear_tables(conn)
         seed_books(conn)
-        seed_strongs(conn)
         
         # Parse and insert Bible verses (WEB)
-        address_to_id = parse_usfx_xml(usfx_path, conn, KEY_THEOLOGICAL_VERSES)
+        address_to_id = parse_usfx_xml(usfx_path, conn)
         
         # Parse and insert KJV / MKJV translations
         parse_json_translations(kjv_path, mkjv_path, conn, address_to_id)
