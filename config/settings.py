@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_num_predict: int = 512
     ollama_temperature: float = 0.0
-    ollama_num_ctx: int = 1024
+    ollama_num_ctx: int = 2048
     rag_confessional_k: int = 2
     rag_biblical_k: int = 10
 
