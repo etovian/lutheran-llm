@@ -23,7 +23,7 @@ def test_retrieve_context():
     mock_bib_collection = MagicMock()
     mock_bib_collection.query.return_value = {
         "documents": [["We maintain that a man is justified..."]],
-        "metadatas": [[{"verse_id": 1, "address_code": "ROM_3_28"}]]
+        "metadatas": [[{"verse_id": 1, "address_code": "ROM_3_28", "book_name": "Romans", "chapter": 3, "verse_number": 28}]]
     }
     
     mock_chroma.get_collection.side_effect = lambda name: (
@@ -49,11 +49,13 @@ def test_retrieve_context():
     assert ctx["confessional"][0]["text"] == "Freely justified for Christ's sake"
     assert ctx["confessional"][0]["citation"] == "AC IV, 1"
     
-    assert "scripture" in ctx
-    assert "translations" in ctx["scripture"]
-    assert ctx["scripture"]["translations"]["WEB"] == "We maintain that a man is justified..."
-    assert ctx["scripture"]["translations"]["KJV"] == "Therefore we conclude..."
-    assert ctx["scripture"]["lexicon"][0]["word_text"] == "λογιζόμεθα"
+    assert "scriptures" in ctx
+    assert len(ctx["scriptures"]) == 1
+    assert "translations" in ctx["scriptures"][0]
+    assert ctx["scriptures"][0]["translations"]["WEB"] == "We maintain that a man is justified..."
+    assert ctx["scriptures"][0]["translations"]["KJV"] == "Therefore we conclude..."
+    assert ctx["scriptures"][0]["lexicon"][0]["word_text"] == "λογιζόμεθα"
+    assert ctx["scriptures"][0]["citation"] == "Romans 3:28"
 
 
 def test_retrieve_context_empty():
@@ -77,7 +79,7 @@ def test_retrieve_context_empty():
         embed_model=mock_embed_model,
         db_lookup_func=lambda eng, vid: {}
     )
-    assert ctx == {"confessional": [], "scripture": {}}
+    assert ctx == {"confessional": [], "scriptures": []}
 
 
 def test_retrieve_context_missing_verse_id():
@@ -111,7 +113,7 @@ def test_retrieve_context_missing_verse_id():
         db_lookup_func=mock_db_lookup
     )
     assert db_called is False
-    assert ctx["scripture"] == {}
+    assert ctx["scriptures"] == []
 
 
 def test_retrieve_context_exception():

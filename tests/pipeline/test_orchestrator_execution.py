@@ -14,10 +14,11 @@ def test_run_orchestrator(mock_retrieve_context):
     # Configure mock retrieve_context return values
     mock_retrieve_context.return_value = {
         "confessional": [{"text": "Freely justified", "citation": "AC IV, 1"}],
-        "scripture": {
+        "scriptures": [{
+            "citation": "Romans 3:28",
             "translations": {"WEB": "Justified by faith"},
             "lexicon": [{"word_text": "δικαιοῦσθαι", "lemma": "δικαιόω", "strongs_number": "G1344", "pronunciation": "dik-ah-yo'-o", "definition": "to justify"}],
-        }
+        }]
     }
     
     # Configure mock LLM response
@@ -35,7 +36,10 @@ def test_run_orchestrator(mock_retrieve_context):
     
     assert "Summary: We are justified by faith." in res
     
-    mock_retrieve_context.assert_called_once_with(mock_chroma, mock_db, "How are we justified?", mock_embed_model)
+    mock_retrieve_context.assert_called_once_with(
+        mock_chroma, mock_db, "How are we justified?", mock_embed_model,
+        confessional_k=None, biblical_k=None
+    )
     
     # Verify LLM invoke was called with SystemMessage (containing context) and HumanMessage
     mock_llm.invoke.assert_called_once()
@@ -58,7 +62,7 @@ def test_run_orchestrator_exception(mock_retrieve_context):
     
     mock_retrieve_context.return_value = {
         "confessional": [],
-        "scripture": {}
+        "scriptures": []
     }
     
     mock_llm.invoke.side_effect = Exception("LLM connection timed out")
@@ -94,10 +98,11 @@ def test_run_orchestrator_fallback_details(mock_retrieve_context):
     
     mock_retrieve_context.return_value = {
         "confessional": [{"text": "Freely justified", "citation": "AC IV, 1"}],
-        "scripture": {
+        "scriptures": [{
+            "citation": "Romans 3:28",
             "translations": {"WEB": "Justified by faith"},
             "lexicon": [{"word_text": "δικαιοῦσθαι", "lemma": "δικαιόω", "strongs_number": "G1344", "definition": "to justify"}],
-        }
+        }]
     }
     
     # LLM returns ONLY summary
@@ -114,4 +119,3 @@ def test_run_orchestrator_fallback_details(mock_retrieve_context):
     assert "Justified by faith" in res
     assert "δικαιοῦσθαι" in res
     assert "</details>" in res
-
