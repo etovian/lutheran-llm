@@ -269,6 +269,19 @@ def test_format_boc_text_with_table():
     assert '<td>Cell 1</td>' in res
 
 
+def test_format_boc_text_squished_table():
+    from pipeline.orchestrator import format_boc_text
+    
+    text = (
+        "| Header 1 | Header 2 ||---|---|| Cell 1 | Cell 2 || Cell 3 | Cell 4 |"
+    )
+    res = format_boc_text(text)
+    assert '<table class="boc-table">' in res
+    assert '<th>Header 1</th>' in res
+    assert '<td>Cell 1</td>' in res
+    assert '<td>Cell 3</td>' in res
+
+
 
 
 

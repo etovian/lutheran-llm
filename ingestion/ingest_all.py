@@ -392,7 +392,23 @@ def parse_boc_markdown(boc_dir: str) -> list[dict]:
                 cleaned_p = p.strip()
                 if not cleaned_p:
                     continue
-                cleaned_p = " ".join(cleaned_p.split())
+                lines_in_p = cleaned_p.splitlines()
+                is_table_p = False
+                if len(lines_in_p) >= 2:
+                    for l in lines_in_p:
+                        l_clean = l.strip().replace(" ", "")
+                        if l_clean.startswith("|") and len(l_clean.replace("|", "").replace("-", "").replace(":", "")) == 0:
+                            is_table_p = True
+                            break
+                if is_table_p:
+                    normalized_lines = []
+                    for l in lines_in_p:
+                        l_clean = l.strip()
+                        if l_clean:
+                            normalized_lines.append(l_clean)
+                    cleaned_p = "\n".join(normalized_lines)
+                else:
+                    cleaned_p = " ".join(cleaned_p.split())
                 if not cleaned_p:
                     continue
                     

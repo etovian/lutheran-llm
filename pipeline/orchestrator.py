@@ -187,6 +187,8 @@ def format_boc_text(text: str) -> str:
     and wrap normal text blocks in paragraphs with quotes.
     """
     import html
+    # Preprocess squished table lines from database ingestion
+    text = text.replace("||", "\n|").replace("| |", "\n|")
     lines = text.split("\n")
     output = []
     
@@ -195,11 +197,10 @@ def format_boc_text(text: str) -> str:
     table_rows = []
     
     def is_separator(line: str) -> bool:
-        cleaned = line.replace(" ", "").replace("\r", "")
-        if not cleaned.startswith("|") or not cleaned.endswith("|"):
+        cleaned = line.strip()
+        if not cleaned.startswith("|"):
             return False
-        # Remove characters allowed in separators
-        for char in ["|", "-", ":"]:
+        for char in ["|", "-", ":", " "]:
             cleaned = cleaned.replace(char, "")
         return len(cleaned) == 0
 
@@ -239,7 +240,7 @@ def format_boc_text(text: str) -> str:
             continue
             
         if in_table:
-            if line.startswith("|") and line.endswith("|"):
+            if line.startswith("|"):
                 table_rows.append(parse_row(line))
                 i += 1
             else:
