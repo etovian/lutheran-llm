@@ -100,6 +100,7 @@ def test_groq_chat_model_invoke_success(mock_post):
             }
         }]
     }
+    mock_response.status_code = 200
     mock_post.return_value = mock_response
 
     model = GroqChatModel(api_key="gsk_key123", model_name="llama3-8b-8192")

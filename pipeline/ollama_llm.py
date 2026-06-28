@@ -255,6 +255,12 @@ class GroqChatModel:
                 },
                 timeout=60
             )
+            if response.status_code != 200:
+                try:
+                    err_msg = response.json().get("error", {}).get("message", response.text)
+                except Exception:
+                    err_msg = response.text
+                raise RuntimeError(err_msg)
             response.raise_for_status()
             res_json = response.json()
             choices = res_json.get("choices", [])
