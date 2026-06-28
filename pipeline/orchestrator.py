@@ -1,5 +1,6 @@
 import logging
 import html
+import re
 from typing import Any, Callable, Dict, List, Optional
 from config.settings import Settings
 
@@ -291,12 +292,50 @@ def run_orchestrator(
         response = llm.invoke(messages)
         response_content = response.content if hasattr(response, "content") else str(response)
         
-        summary = response_content
-        if "<details>" in response_content:
-            summary = response_content.split("<details>")[0].strip()
+        # Parse citations
+        citation_match = re.search(r'<citations>(.*?)</citations>', response_content, re.DOTALL)
+        filtered_ctx = None
+        clean_response = response_content
+        
+        if citation_match:
+            citations_raw = citation_match.group(1)
+            # Find all Ref-N integers
+            ref_nums = [int(num) for num in re.findall(r'\[Ref-(\d+)\]', citations_raw)]
+            
+            conf_chunks = retrieved_ctx.get("confessional", [])
+            scriptures = retrieved_ctx.get("scriptures", [])
+            all_refs = conf_chunks + scriptures
+            
+            cited_conf = []
+            cited_scriptures = []
+            
+            for num in ref_nums:
+                idx = num - 1
+                if 0 <= idx < len(all_refs):
+                    item = all_refs[idx]
+                    if item in conf_chunks:
+                        if item not in cited_conf:
+                            cited_conf.append(item)
+                    elif item in scriptures:
+                        if item not in cited_scriptures:
+                            cited_scriptures.append(item)
+            
+            if cited_conf or cited_scriptures:
+                filtered_ctx = {
+                    "confessional": cited_conf,
+                    "scriptures": cited_scriptures
+                }
+            
+            # Clean the citations block from response
+            clean_response = response_content.replace(citation_match.group(0), "").strip()
+            
+        summary = clean_response
+        if "<details>" in clean_response:
+            summary = clean_response.split("<details>")[0].strip()
             
         # Programmatically construct and append deep-dive details
-        details_html = format_deep_dive_details(retrieved_ctx, primary_translation, db_engine=db_engine)
+        ctx_to_use = filtered_ctx if filtered_ctx is not None else retrieved_ctx
+        details_html = format_deep_dive_details(ctx_to_use, primary_translation, db_engine=db_engine)
         full_res = f"{summary}\n\n{details_html}"
         return OrchestratorResponse(full_res, summary=summary, retrieved_ctx=retrieved_ctx)
         

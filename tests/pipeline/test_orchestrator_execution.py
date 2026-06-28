@@ -213,4 +213,47 @@ def test_format_llm_context_adds_reference_labels():
     assert "[Ref-2] Citation: Romans 3:28" in formatted
 
 
+@patch("pipeline.orchestrator.retrieve_context")
+def test_run_orchestrator_filters_citations(mock_retrieve_context):
+    mock_chroma = MagicMock()
+    mock_db = MagicMock()
+    mock_llm = MagicMock()
+    mock_embed_model = MagicMock()
+    
+    mock_retrieve_context.return_value = {
+        "confessional": [{"text": "Freely justified", "citation": "AC IV, 1"}],
+        "scriptures": [
+            {
+                "citation": "Romans 3:28",
+                "verse_id": 1,
+                "primary_translation": "WEB",
+                "cached_text": "Justified by faith",
+            },
+            {
+                "citation": "Ephesians 2:8",
+                "verse_id": 2,
+                "primary_translation": "WEB",
+                "cached_text": "Saved by grace",
+            }
+        ]
+    }
+    
+    # LLM returns text citing only the scripture Romans 3:28 [Ref-2]
+    mock_llm_response = MagicMock()
+    mock_llm_response.content = "We are justified by faith. <citations>[Ref-2]</citations>"
+    mock_llm.invoke.return_value = mock_llm_response
+    
+    res = run_orchestrator(mock_chroma, mock_db, mock_llm, "Query", mock_embed_model)
+    
+    # The output should NOT contain <citations> tags or Ref-2 in text
+    assert "<citations>" not in res
+    assert "We are justified by faith." in res
+    # The deep-dive section should have Romans 3:28 (cited) but NOT Ephesians 2:8 (not cited)
+    assert "Romans 3:28" in res
+    assert "Ephesians 2:8" not in res
+    # Confessional is also not cited, so it should not be present
+    assert "AC IV, 1" not in res
+
+
+
 
