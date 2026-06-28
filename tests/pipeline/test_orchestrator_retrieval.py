@@ -204,3 +204,44 @@ def test_retrieve_context_respects_primary_translation():
     assert result["scriptures"][0]["primary_translation"] == "KJV"
     assert result["scriptures"][0]["cached_text"] == "Car Dieu a tant aimé"
 
+
+def test_retrieve_context_filters_by_distance_threshold():
+    """Verify that retrieve_context filters scriptures using rag_biblical_distance_threshold."""
+    from unittest.mock import MagicMock
+    
+    mock_chroma = MagicMock()
+    mock_db = MagicMock()
+    mock_embed_model = MagicMock()
+    mock_embed_model.encode.return_value.tolist.return_value = [0.1, 0.2]
+    
+    mock_conf_collection = MagicMock()
+    mock_conf_collection.query.return_value = {"documents": [[]], "metadatas": [[]]}
+    
+    mock_bib_collection = MagicMock()
+    mock_bib_collection.query.return_value = {
+        "documents": [["Verse 1", "Verse 2"]],
+        "metadatas": [[
+            {"verse_id": 1, "book_name": "Romans", "chapter": 3, "verse_number": 28, "address_code": "ROM_3_28"},
+            {"verse_id": 2, "book_name": "Ephesians", "chapter": 2, "verse_number": 8, "address_code": "EPH_2_8"}
+        ]],
+        "distances": [[0.5, 1.5]]  # 0.5 is <= 1.2 (keeps it), 1.5 is > 1.2 (filters it)
+    }
+    
+    mock_chroma.get_collection.side_effect = lambda name: (
+        mock_conf_collection if name == "confessional_collection" else mock_bib_collection
+    )
+    
+    ctx = retrieve_context(
+        chroma_client=mock_chroma,
+        db_engine=mock_db,
+        query="justified",
+        embed_model=mock_embed_model,
+        db_lookup_func=lambda eng, vid: f"Text {vid}"
+    )
+    
+    # Only verse 1 should be returned because distance 1.5 exceeds the default 1.2 threshold
+    assert len(ctx["scriptures"]) == 1
+    assert ctx["scriptures"][0]["verse_id"] == 1
+    assert ctx["scriptures"][0]["distance"] == 0.5
+
+

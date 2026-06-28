@@ -50,8 +50,7 @@ def retrieve_context(
     """
     if confessional_k is None:
         confessional_k = settings.rag_confessional_k
-    if biblical_k is None:
-        biblical_k = settings.rag_biblical_k
+    bib_limit = biblical_k if biblical_k is not None else settings.rag_biblical_max_pool
         
     try:
         query_embedding = embed_model.encode(query).tolist()
@@ -72,12 +71,15 @@ def retrieve_context(
             
         bib_coll_name = getattr(settings, "chroma_biblical_collection", "biblical_collection")
         bib_collection = chroma_client.get_collection(bib_coll_name)
-        bib_res = bib_collection.query(query_embeddings=[query_embedding], n_results=biblical_k)
+        bib_res = bib_collection.query(query_embeddings=[query_embedding], n_results=bib_limit)
         
         bib_metas = bib_res.get("metadatas", [[]])[0] if bib_res.get("metadatas") else []
+        bib_distances = bib_res.get("distances", [[]])[0] if bib_res.get("distances") else [0.0] * len(bib_metas)
         
         scriptures = []
-        for meta in bib_metas:
+        for meta, dist in zip(bib_metas, bib_distances):
+            if dist > settings.rag_biblical_distance_threshold:
+                continue
             verse_id = meta.get("verse_id")
             if verse_id is not None:
                 if db_lookup_func is not None:
@@ -96,8 +98,13 @@ def retrieve_context(
                     "book_name": book_name,
                     "chapter": chapter,
                     "verse_number": verse_number,
-                    "address_code": meta.get("address_code")
+                    "address_code": meta.get("address_code"),
+                    "distance": dist
                 })
+        logger.info(
+            "Retrieved %d biblical passages; %d passed distance threshold <= %f",
+            len(bib_distances), len(scriptures), settings.rag_biblical_distance_threshold
+        )
                     
     except Exception as e:
         logger.error("Failed to retrieve context for query %r: %s", query, e, exc_info=True)
