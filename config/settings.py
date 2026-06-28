@@ -11,9 +11,9 @@ class Settings(BaseSettings):
     chroma_db_path: str = "./.chroma"
     ollama_model: str = "llama3"
     ollama_base_url: str = "http://localhost:11434"
-    ollama_num_predict: int = 512
+    ollama_num_predict: int = 2048
     ollama_temperature: float = 0.0
-    ollama_num_ctx: int = 2048
+    ollama_num_ctx: int = 8192
     rag_confessional_k: int = 5
     rag_biblical_k: int = 10
     rag_biblical_max_pool: int = 50
@@ -22,6 +22,6 @@ class Settings(BaseSettings):
     groq_api_key: Optional[str] = None
     groq_model: str = "llama3-8b-8192"
     groq_temperature: float = 0.0
-    groq_max_tokens: int = 512
+    groq_max_tokens: int = 2048
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")

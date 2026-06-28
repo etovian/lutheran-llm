@@ -29,23 +29,41 @@ class OllamaChatModel:
                 "content": content
             })
 
-        try:
-            response = requests.post(
-                f"{self.base_url}/api/chat",
-                json={
-                    "model": self.model_name,
-                    "messages": formatted_messages,
-                    "stream": False,
-                    "options": self.options
-                },
-                timeout=600
-            )
-            response.raise_for_status()
-            res_json = response.json()
-            content = res_json.get("message", {}).get("content", "")
-            return AIMessage(content=content)
-        except Exception as e:
-            raise RuntimeError(f"Ollama invocation failed: {e}")
+        stitched_content = ""
+        max_loops = 5
+        loop_count = 0
+
+        while loop_count < max_loops:
+            try:
+                response = requests.post(
+                    f"{self.base_url}/api/chat",
+                    json={
+                        "model": self.model_name,
+                        "messages": formatted_messages,
+                        "stream": False,
+                        "options": self.options
+                    },
+                    timeout=600
+                )
+                response.raise_for_status()
+                res_json = response.json()
+                content = res_json.get("message", {}).get("content", "")
+                stitched_content += content
+
+                done_reason = res_json.get("done_reason")
+                if done_reason == "length":
+                    formatted_messages.append({"role": "assistant", "content": content})
+                    formatted_messages.append({
+                        "role": "system",
+                        "content": "Continue your response precisely where you left off, without repeating any prefix."
+                    })
+                    loop_count += 1
+                else:
+                    break
+            except Exception as e:
+                raise RuntimeError(f"Ollama invocation failed: {e}")
+
+        return AIMessage(content=stitched_content)
 
 
 class SimulatedChatModel:
@@ -240,32 +258,54 @@ class GroqChatModel:
                 "content": content
             })
 
-        try:
-            response = requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "model": self.model_name,
-                    "messages": formatted_messages,
-                    "temperature": self.temperature,
-                    "max_tokens": self.max_tokens
-                },
-                timeout=60
-            )
-            if response.status_code != 200:
-                try:
-                    err_msg = response.json().get("error", {}).get("message", response.text)
-                except Exception:
-                    err_msg = response.text
-                raise RuntimeError(err_msg)
-            response.raise_for_status()
-            res_json = response.json()
-            choices = res_json.get("choices", [])
-            content = choices[0].get("message", {}).get("content", "") if choices else ""
-            return AIMessage(content=content)
-        except Exception as e:
-            raise RuntimeError(f"Groq API invocation failed: {e}")
+        stitched_content = ""
+        max_loops = 5
+        loop_count = 0
+
+        while loop_count < max_loops:
+            try:
+                response = requests.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "model": self.model_name,
+                        "messages": formatted_messages,
+                        "temperature": self.temperature,
+                        "max_tokens": self.max_tokens
+                    },
+                    timeout=60
+                )
+                if response.status_code != 200:
+                    try:
+                        err_msg = response.json().get("error", {}).get("message", response.text)
+                    except Exception:
+                        err_msg = response.text
+                    raise RuntimeError(err_msg)
+                response.raise_for_status()
+                res_json = response.json()
+                choices = res_json.get("choices", [])
+                if not choices:
+                    break
+
+                choice = choices[0]
+                content = choice.get("message", {}).get("content", "")
+                stitched_content += content
+
+                finish_reason = choice.get("finish_reason")
+                if finish_reason == "length":
+                    formatted_messages.append({"role": "assistant", "content": content})
+                    formatted_messages.append({
+                        "role": "system",
+                        "content": "Continue your response precisely where you left off, without repeating any prefix."
+                    })
+                    loop_count += 1
+                else:
+                    break
+            except Exception as e:
+                raise RuntimeError(f"Groq API invocation failed: {e}")
+
+        return AIMessage(content=stitched_content)
 

@@ -52,16 +52,16 @@ def test_settings_default_values(monkeypatch):
     assert settings.chroma_db_path == "./.chroma"
     assert settings.ollama_model == "llama3"
     assert settings.ollama_base_url == "http://localhost:11434"
-    assert settings.ollama_num_predict == 512
+    assert settings.ollama_num_predict == 2048
     assert settings.ollama_temperature == 0.0
-    assert settings.ollama_num_ctx == 2048
+    assert settings.ollama_num_ctx == 8192
     assert settings.rag_confessional_k == 5
     assert settings.rag_biblical_k == 10
     assert settings.llm_provider == "ollama"
     assert settings.groq_api_key is None
     assert settings.groq_model == "llama3-8b-8192"
     assert settings.groq_temperature == 0.0
-    assert settings.groq_max_tokens == 512
+    assert settings.groq_max_tokens == 2048
 
 
 def test_settings_rag_k_values(monkeypatch):

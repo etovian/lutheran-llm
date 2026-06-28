@@ -132,3 +132,62 @@ def test_groq_chat_model_invoke_success(mock_post):
         timeout=60
     )
 
+
+@patch("requests.post")
+def test_ollama_chat_model_auto_continuation(mock_post):
+    # Mock first response returning done_reason="length"
+    mock_res_1 = MagicMock()
+    mock_res_1.json.return_value = {
+        "message": {"role": "assistant", "content": "Part 1 of the response..."},
+        "done_reason": "length"
+    }
+    
+    # Mock second response returning done_reason="stop"
+    mock_res_2 = MagicMock()
+    mock_res_2.json.return_value = {
+        "message": {"role": "assistant", "content": " and this is part 2."},
+        "done_reason": "stop"
+    }
+    
+    mock_post.side_effect = [mock_res_1, mock_res_2]
+    
+    model = OllamaChatModel(model_name="llama3", base_url="http://localhost:11434")
+    result = model.invoke([HumanMessage(content="Hello")])
+    
+    assert result.content == "Part 1 of the response... and this is part 2."
+    assert mock_post.call_count == 2
+
+
+@patch("requests.post")
+def test_groq_chat_model_auto_continuation(mock_post):
+    from pipeline.ollama_llm import GroqChatModel
+    
+    # Mock first response returning finish_reason="length"
+    mock_res_1 = MagicMock()
+    mock_res_1.status_code = 200
+    mock_res_1.json.return_value = {
+        "choices": [{
+            "message": {"content": "First chunk..."},
+            "finish_reason": "length"
+        }]
+    }
+    
+    # Mock second response returning finish_reason="stop"
+    mock_res_2 = MagicMock()
+    mock_res_2.status_code = 200
+    mock_res_2.json.return_value = {
+        "choices": [{
+            "message": {"content": " second chunk."},
+            "finish_reason": "stop"
+        }]
+    }
+    
+    mock_post.side_effect = [mock_res_1, mock_res_2]
+    
+    model = GroqChatModel(api_key="gsk_key123", model_name="llama3-8b-8192")
+    result = model.invoke([HumanMessage(content="Hello")])
+    
+    assert result.content == "First chunk... second chunk."
+    assert mock_post.call_count == 2
+
+
