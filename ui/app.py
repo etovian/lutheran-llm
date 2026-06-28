@@ -258,8 +258,16 @@ if query:
         else:
             with st.spinner("Searching scriptural and confessional context..."):
                 try:
-                    # Choose LLM client based on status
-                    if ollama_ok:
+                    # Choose LLM client based on status and settings
+                    if settings.llm_provider == "groq" and settings.groq_api_key:
+                        from pipeline.ollama_llm import GroqChatModel
+                        llm = GroqChatModel(
+                            api_key=settings.groq_api_key,
+                            model_name=settings.groq_model,
+                            temperature=settings.ollama_temperature,
+                            max_tokens=settings.ollama_num_predict
+                        )
+                    elif ollama_ok:
                         llm = OllamaChatModel(
                             model_name=settings.ollama_model,
                             base_url=settings.ollama_base_url,
