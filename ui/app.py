@@ -82,6 +82,42 @@ st.markdown(
         font-weight: 500 !important;
     }
 
+    /* Premium Styling for Book of Concord Tables */
+    .boc-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 0.6rem;
+        margin-bottom: 0.6rem;
+        font-size: 0.9rem;
+        color: #E2E8F0;
+        background-color: #1E293B;
+        border-radius: 6px;
+        overflow: hidden;
+        border: 1px solid #334155;
+    }
+
+    .boc-table th {
+        background-color: #334155;
+        color: #F59E0B;
+        font-weight: 600;
+        text-align: left;
+        padding: 0.5rem 0.8rem;
+        border-bottom: 2px solid #475569;
+    }
+
+    .boc-table td {
+        padding: 0.5rem 0.8rem;
+        border-bottom: 1px solid #334155;
+    }
+
+    .boc-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .boc-table tr:hover {
+        background-color: #2D3748;
+    }
+
     summary {
         font-weight: 600;
         font-size: 1.05rem;
