@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock, patch
 import pytest
 from langchain_core.messages import SystemMessage, HumanMessage
-from pipeline.orchestrator import run_orchestrator, format_deep_dive_details
+from pipeline.orchestrator import run_orchestrator, format_deep_dive_details, format_llm_context
 
 @patch("pipeline.orchestrator.retrieve_context")
 def test_run_orchestrator(mock_retrieve_context):
@@ -201,5 +201,16 @@ def test_format_deep_dive_details_collapsible():
     assert '<details class="boc-detail"' in html_output
     assert '<summary style="font-weight: 500; font-size: 0.95rem; color: #E2E8F0; cursor: pointer;">Apology IV, 1</summary>' in html_output
     assert '"Freely justified by grace"' in html_output
+
+
+def test_format_llm_context_adds_reference_labels():
+    ctx = {
+        "confessional": [{"text": "Justified by faith", "citation": "AC IV"}],
+        "scriptures": [{"citation": "Romans 3:28", "primary_translation": "WEB", "cached_text": "Justified by faith"}]
+    }
+    formatted = format_llm_context(ctx)
+    assert "[Ref-1] Source: AC IV" in formatted
+    assert "[Ref-2] Citation: Romans 3:28" in formatted
+
 
 

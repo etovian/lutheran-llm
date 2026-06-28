@@ -149,14 +149,16 @@ def format_llm_context(retrieved_ctx: Dict[str, Any]) -> str:
     into a structured string to minimize context window size for LLM generation.
     """
     lines = []
+    ref_idx = 1
     
     # Confessional chunks
     lines.append("--- CONFESSIONAL CONTEXT ---")
     confessional_chunks = retrieved_ctx.get("confessional", [])
     if confessional_chunks:
         for chunk in confessional_chunks:
-            lines.append(f"Source: {chunk.get('citation')}")
+            lines.append(f"[Ref-{ref_idx}] Source: {chunk.get('citation')}")
             lines.append(f"Content: {chunk.get('text')}\n")
+            ref_idx += 1
     else:
         lines.append("No confessional context found.\n")
         
@@ -168,9 +170,10 @@ def format_llm_context(retrieved_ctx: Dict[str, Any]) -> str:
             citation = scripture.get("citation", "Unknown Scripture")
             ver = scripture.get("primary_translation", "WEB")
             text_val = scripture.get("cached_text", "")
-            lines.append(f"Citation: {citation}")
+            lines.append(f"[Ref-{ref_idx}] Citation: {citation}")
             lines.append(f"[{ver}]: {text_val}")
             lines.append("")
+            ref_idx += 1
     else:
         lines.append("No scripture context found.")
         
