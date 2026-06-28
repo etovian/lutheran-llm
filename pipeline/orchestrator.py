@@ -181,6 +181,90 @@ def format_llm_context(retrieved_ctx: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def format_boc_text(text: str) -> str:
+    """
+    Format Book of Concord text: detect and format markdown tables as HTML tables,
+    and wrap normal text blocks in paragraphs with quotes.
+    """
+    import html
+    lines = text.split("\n")
+    output = []
+    
+    in_table = False
+    table_headers = []
+    table_rows = []
+    
+    def is_separator(line: str) -> bool:
+        cleaned = line.replace(" ", "").replace("\r", "")
+        if not cleaned.startswith("|") or not cleaned.endswith("|"):
+            return False
+        # Remove characters allowed in separators
+        for char in ["|", "-", ":"]:
+            cleaned = cleaned.replace(char, "")
+        return len(cleaned) == 0
+
+    def parse_row(line: str) -> list:
+        parts = line.strip().split("|")
+        if len(parts) >= 2:
+            if parts[0] == "":
+                parts = parts[1:]
+            if len(parts) >= 1 and parts[-1] == "":
+                parts = parts[:-1]
+        return [p.strip() for p in parts]
+
+    def render_html_table(headers: list, rows: list) -> str:
+        html_lines = ['<table class="boc-table">', '  <thead>', '    <tr>']
+        for h in headers:
+            html_lines.append(f'      <th>{html.escape(h)}</th>')
+        html_lines.extend(['    </tr>', '  </thead>', '  <tbody>'])
+        for r in rows:
+            html_lines.append('    <tr>')
+            for cell in r:
+                html_lines.append(f'      <td>{html.escape(cell)}</td>')
+            for _ in range(len(headers) - len(r)):
+                html_lines.append('      <td></td>')
+            html_lines.append('    </tr>')
+        html_lines.extend(['  </tbody>', '</table>'])
+        return "\n".join(html_lines)
+
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        
+        if not in_table and "|" in line and i + 1 < len(lines) and is_separator(lines[i+1]):
+            in_table = True
+            table_headers = parse_row(line)
+            table_rows = []
+            i += 2
+            continue
+            
+        if in_table:
+            if line.startswith("|") and line.endswith("|"):
+                table_rows.append(parse_row(line))
+                i += 1
+            else:
+                output.append(render_html_table(table_headers, table_rows))
+                in_table = False
+            continue
+            
+        if line:
+            paragraph_lines = []
+            while i < len(lines) and lines[i].strip() and not (
+                "|" in lines[i].strip() and i + 1 < len(lines) and is_separator(lines[i+1])
+            ):
+                paragraph_lines.append(lines[i].strip())
+                i += 1
+            paragraph_text = " ".join(paragraph_lines)
+            output.append(f'<p style="margin-top: 0.4rem; font-style: italic; color: #94A3B8; font-size: 0.9rem;">"{html.escape(paragraph_text)}"</p>')
+        else:
+            i += 1
+            
+    if in_table:
+        output.append(render_html_table(table_headers, table_rows))
+        
+    return "\n".join(output)
+
+
 def format_deep_dive_details(
     retrieved_ctx: Dict[str, Any],
     primary_translation: str = "WEB",
@@ -199,11 +283,11 @@ def format_deep_dive_details(
     if confessional:
         for chunk in confessional:
             citation = html.escape(chunk.get("citation", "Book of Concord"))
-            text_val = html.escape(chunk.get("text", ""))
+            formatted_text = format_boc_text(chunk.get("text", ""))
             lines.append(
                 f'<details class="boc-detail" style="margin-bottom: 0.6rem; margin-left: 0.5rem; border-left: 2px solid #F59E0B; padding: 0.3rem 0.6rem;">'
                 f'  <summary style="font-weight: 500; font-size: 0.95rem; color: #E2E8F0; cursor: pointer;">{citation}</summary>'
-                f'  <p style="margin-top: 0.4rem; font-style: italic; color: #94A3B8; font-size: 0.9rem;">"{text_val}"</p>'
+                f'  <div style="margin-top: 0.4rem;">{formatted_text}</div>'
                 f'</details>'
             )
     else:
