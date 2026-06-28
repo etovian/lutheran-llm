@@ -14,7 +14,7 @@ def test_settings_load_from_env(monkeypatch):
     monkeypatch.setenv("OLLAMA_TEMPERATURE", "0.5")
     monkeypatch.setenv("OLLAMA_NUM_CTX", "2048")
     
-    settings = Settings()
+    settings = Settings(_env_file=None)
     
     assert settings.database_url == "postgresql://test_user:test_pass@localhost:5432/test_db"
     assert settings.primary_search_version == "WEB"
@@ -46,7 +46,7 @@ def test_settings_default_values(monkeypatch):
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
     monkeypatch.delenv("GROQ_MODEL", raising=False)
     
-    settings = Settings()
+    settings = Settings(_env_file=None)
     assert settings.database_url == "postgresql+psycopg://user:password@localhost:5432/lutheran_db"
     assert settings.primary_search_version == "WEB"
     assert settings.chroma_db_path == "./.chroma"
@@ -60,6 +60,8 @@ def test_settings_default_values(monkeypatch):
     assert settings.llm_provider == "ollama"
     assert settings.groq_api_key is None
     assert settings.groq_model == "llama3-8b-8192"
+    assert settings.groq_temperature == 0.0
+    assert settings.groq_max_tokens == 512
 
 
 def test_settings_rag_k_values(monkeypatch):
@@ -68,7 +70,7 @@ def test_settings_rag_k_values(monkeypatch):
     """
     monkeypatch.setenv("RAG_CONFESSIONAL_K", "5")
     monkeypatch.setenv("RAG_BIBLICAL_K", "2")
-    settings = Settings()
+    settings = Settings(_env_file=None)
     assert settings.rag_confessional_k == 5
     assert settings.rag_biblical_k == 2
 
@@ -80,9 +82,13 @@ def test_settings_groq_overrides(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "groq")
     monkeypatch.setenv("GROQ_API_KEY", "gsk_test123")
     monkeypatch.setenv("GROQ_MODEL", "mixtral-8x7b-32768")
-    settings = Settings()
+    monkeypatch.setenv("GROQ_TEMPERATURE", "0.7")
+    monkeypatch.setenv("GROQ_MAX_TOKENS", "1024")
+    settings = Settings(_env_file=None)
     assert settings.llm_provider == "groq"
     assert settings.groq_api_key == "gsk_test123"
     assert settings.groq_model == "mixtral-8x7b-32768"
+    assert settings.groq_temperature == 0.7
+    assert settings.groq_max_tokens == 1024
 
 

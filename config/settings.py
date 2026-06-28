@@ -19,5 +19,7 @@ class Settings(BaseSettings):
     llm_provider: Literal["ollama", "groq"] = "ollama"
     groq_api_key: Optional[str] = None
     groq_model: str = "llama3-8b-8192"
+    groq_temperature: float = 0.0
+    groq_max_tokens: int = 512
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")

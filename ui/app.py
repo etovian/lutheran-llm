@@ -264,8 +264,8 @@ if query:
                         llm = GroqChatModel(
                             api_key=settings.groq_api_key,
                             model_name=settings.groq_model,
-                            temperature=settings.ollama_temperature,
-                            max_tokens=settings.ollama_num_predict
+                            temperature=settings.groq_temperature,
+                            max_tokens=settings.groq_max_tokens
                         )
                     elif ollama_ok:
                         llm = OllamaChatModel(
