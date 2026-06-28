@@ -126,27 +126,28 @@ def format_llm_context(retrieved_ctx: Dict[str, Any]) -> str:
     else:
         lines.append("No confessional context found.\n")
         
-    # Scripture Context (Translations only, omitting lexicon to optimize CPU latency)
+    # Scripture Context (Single translation to minimize context window)
     lines.append("--- SCRIPTURE CONTEXT ---")
     scriptures = retrieved_ctx.get("scriptures", [])
     if scriptures:
         for scripture in scriptures:
             citation = scripture.get("citation", "Unknown Scripture")
+            ver = scripture.get("primary_translation", "WEB")
+            text_val = scripture.get("cached_text", "")
             lines.append(f"Citation: {citation}")
-            translations = scripture.get("translations", {})
-            if translations:
-                for ver, text_val in translations.items():
-                    lines.append(f"[{ver}]: {text_val}")
-            else:
-                lines.append("No parallel scripture translations found.")
+            lines.append(f"[{ver}]: {text_val}")
             lines.append("")
     else:
-        lines.append("No parallel scripture translations found.")
+        lines.append("No scripture context found.")
         
     return "\n".join(lines)
 
 
-def format_deep_dive_details(retrieved_ctx: Dict[str, Any], primary_translation: str = "WEB") -> str:
+def format_deep_dive_details(
+    retrieved_ctx: Dict[str, Any],
+    primary_translation: str = "WEB",
+    db_engine: Any = None
+) -> str:
     """
     Programmatically construct the HTML collapsible deep-dive details block.
     """
@@ -171,12 +172,18 @@ def format_deep_dive_details(retrieved_ctx: Dict[str, Any], primary_translation:
     if scriptures:
         for scripture in scriptures:
             citation = html.escape(scripture.get("citation", "Unknown Scripture"))
-            translations = scripture.get("translations", {})
-            verse_text = translations.get(primary_translation, "")
-            if not verse_text:
-                verse_text = translations.get("WEB", "")
-                if not verse_text and translations:
-                    verse_text = list(translations.values())[0]
+            verse_id = scripture.get("verse_id")
+            cached_ver = scripture.get("primary_translation", "WEB")
+            cached_text = scripture.get("cached_text", "")
+            
+            if primary_translation == cached_ver or db_engine is None:
+                # Use cached text (same version, or no DB available/tests)
+                verse_text = cached_text
+            else:
+                # On-demand DB lookup for the alternate translation
+                verse_text = fetch_single_translation(db_engine, verse_id, primary_translation)
+                if not verse_text:
+                    verse_text = cached_text  # graceful fallback
             
             escaped_translation = html.escape(primary_translation)
             escaped_text = html.escape(verse_text)

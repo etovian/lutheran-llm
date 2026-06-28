@@ -16,7 +16,9 @@ def test_run_orchestrator(mock_retrieve_context):
         "confessional": [{"text": "Freely justified", "citation": "AC IV, 1"}],
         "scriptures": [{
             "citation": "Romans 3:28",
-            "translations": {"WEB": "Justified by faith"},
+            "verse_id": 1,
+            "primary_translation": "WEB",
+            "cached_text": "Justified by faith",
         }]
     }
     
@@ -100,7 +102,9 @@ def test_run_orchestrator_fallback_details(mock_retrieve_context):
         "confessional": [{"text": "Freely justified", "citation": "AC IV, 1"}],
         "scriptures": [{
             "citation": "Romans 3:28",
-            "translations": {"WEB": "Justified by faith"},
+            "verse_id": 1,
+            "primary_translation": "WEB",
+            "cached_text": "Justified by faith",
         }]
     }
     
@@ -135,11 +139,15 @@ def test_run_orchestrator_multiple_citations(mock_retrieve_context):
         "scriptures": [
             {
                 "citation": "Romans 3:28",
-                "translations": {"WEB": "Justified by faith"},
+                "verse_id": 1,
+                "primary_translation": "WEB",
+                "cached_text": "Justified by faith",
             },
             {
                 "citation": "Ephesians 2:8",
-                "translations": {"WEB": "By grace you have been saved through faith"},
+                "verse_id": 2,
+                "primary_translation": "WEB",
+                "cached_text": "By grace you have been saved through faith",
             }
         ]
     }
