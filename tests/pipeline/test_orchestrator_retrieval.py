@@ -30,15 +30,16 @@ def test_retrieve_context():
         mock_conf_collection if name == "confessional_collection" else mock_bib_collection
     )
     
-    # Mock DB queries.py response
-    mock_db_res = {"WEB": "We maintain that a man is justified...", "KJV": "Therefore we conclude..."}
+    # db_lookup_func returns a string (the verse text) directly
+    mock_db_lookup_func = MagicMock()
+    mock_db_lookup_func.return_value = "For we maintain that a man is justified by faith"
     
     ctx = retrieve_context(
         chroma_client=mock_chroma,
         db_engine=mock_db,
         query="justified",
         embed_model=mock_embed_model,
-        db_lookup_func=lambda eng, vid: mock_db_res
+        db_lookup_func=mock_db_lookup_func
     )
     
     assert "confessional" in ctx
@@ -48,10 +49,10 @@ def test_retrieve_context():
     
     assert "scriptures" in ctx
     assert len(ctx["scriptures"]) == 1
-    assert "translations" in ctx["scriptures"][0]
-    assert ctx["scriptures"][0]["translations"]["WEB"] == "We maintain that a man is justified..."
-    assert ctx["scriptures"][0]["translations"]["KJV"] == "Therefore we conclude..."
-    assert "lexicon" not in ctx["scriptures"][0]
+    assert ctx["scriptures"][0]["verse_id"] == 1
+    assert ctx["scriptures"][0]["primary_translation"] == "WEB"
+    assert ctx["scriptures"][0]["cached_text"] == "For we maintain that a man is justified by faith"
+    assert "translations" not in ctx["scriptures"][0]  # old key gone
     assert ctx["scriptures"][0]["citation"] == "Romans 3:28"
 
 
@@ -74,7 +75,7 @@ def test_retrieve_context_empty():
         db_engine=mock_db,
         query="justified",
         embed_model=mock_embed_model,
-        db_lookup_func=lambda eng, vid: {}
+        db_lookup_func=lambda eng, vid: "some text"
     )
     assert ctx == {"confessional": [], "scriptures": []}
 
@@ -100,7 +101,7 @@ def test_retrieve_context_missing_verse_id():
     def mock_db_lookup(eng, vid):
         nonlocal db_called
         db_called = True
-        return {}
+        return "some text"
         
     ctx = retrieve_context(
         chroma_client=mock_chroma,
@@ -148,12 +149,12 @@ def test_retrieve_context_multiple_citations():
     )
     
     mock_db_res_map = {
-        1: {"WEB": "First verse WEB", "KJV": "First verse KJV"},
-        2: {"WEB": "Second verse WEB", "KJV": "Second verse KJV"}
+        1: "First verse WEB text",
+        2: "Second verse WEB text"
     }
     
     def mock_db_lookup(eng, vid):
-        return mock_db_res_map.get(vid, {})
+        return mock_db_res_map.get(vid, "")
         
     ctx = retrieve_context(
         chroma_client=mock_chroma,
@@ -167,9 +168,15 @@ def test_retrieve_context_multiple_citations():
     assert len(ctx["scriptures"]) == 2
     
     assert ctx["scriptures"][0]["citation"] == "Romans 3:28"
-    assert ctx["scriptures"][0]["translations"]["WEB"] == "First verse WEB"
+    assert ctx["scriptures"][0]["verse_id"] == 1
+    assert ctx["scriptures"][0]["primary_translation"] == "WEB"
+    assert ctx["scriptures"][0]["cached_text"] == "First verse WEB text"
+    assert "translations" not in ctx["scriptures"][0]
     assert "lexicon" not in ctx["scriptures"][0]
     
     assert ctx["scriptures"][1]["citation"] == "Ephesians 2:8"
-    assert ctx["scriptures"][1]["translations"]["WEB"] == "Second verse WEB"
+    assert ctx["scriptures"][1]["verse_id"] == 2
+    assert ctx["scriptures"][1]["primary_translation"] == "WEB"
+    assert ctx["scriptures"][1]["cached_text"] == "Second verse WEB text"
+    assert "translations" not in ctx["scriptures"][1]
     assert "lexicon" not in ctx["scriptures"][1]

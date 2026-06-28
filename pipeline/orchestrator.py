@@ -10,7 +10,7 @@ class OrchestratorResponse(str):
         obj.summary = summary if summary is not None else ""
         obj.retrieved_ctx = retrieved_ctx if retrieved_ctx is not None else {}
         return obj
-from database.queries import fetch_parallel_translations
+from database.queries import fetch_parallel_translations, fetch_single_translation
 from langchain_core.messages import SystemMessage, HumanMessage
 from pipeline.prompt import SYSTEM_PROMPT
 from pipeline.guardrails import detect_pastoral_crisis, get_redirection_response
@@ -19,18 +19,19 @@ logger = logging.getLogger(__name__)
 settings = Settings()
 
 def retrieve_context(
-    chroma_client: Any, 
-    db_engine: Any, 
-    query: str, 
-    embed_model: Any, 
-    confessional_k: Optional[int] = None, 
-    biblical_k: Optional[int] = None, 
-    db_lookup_func: Optional[Callable[..., Any]] = None
+    chroma_client: Any,
+    db_engine: Any,
+    query: str,
+    embed_model: Any,
+    confessional_k: Optional[int] = None,
+    biblical_k: Optional[int] = None,
+    db_lookup_func: Optional[Callable[..., Any]] = None,
+    primary_translation: str = "WEB"
 ) -> Dict[str, Any]:
     """
-    Retrieve semantic context from ChromaDB collections and fetch parallel bible verses
-    and lexicon definitions from the relational database.
-    
+    Retrieve semantic context from ChromaDB collections and fetch a single Bible translation
+    per verse from the relational database.
+
     Args:
         chroma_client: The ChromaDB client instance.
         db_engine: SQLAlchemy database engine instance.
@@ -38,15 +39,15 @@ def retrieve_context(
         embed_model: Embedding model instance to generate query vectors.
         confessional_k (int): Number of confessional documents to retrieve.
         biblical_k (int): Number of biblical documents to retrieve.
-        db_lookup_func: Function to lookup relational database records, defaults to 
-                        fetch_parallel_verses_and_lexicon.
-                        
+        db_lookup_func: Optional callable for test injection; receives (db_engine, verse_id)
+                        and returns a string (the verse text). In production, fetch_single_translation
+                        is called directly.
+        primary_translation (str): Which Bible translation to cache (e.g. "WEB", "KJV").
+
     Returns:
-        dict: A dictionary containing 'confessional' chunk details and parallel 'scriptures' info.
+        dict: A dictionary containing 'confessional' chunk details and 'scriptures' with
+              verse_id, primary_translation, and cached_text.
     """
-    if db_lookup_func is None:
-        db_lookup_func = fetch_parallel_translations
-        
     if confessional_k is None:
         confessional_k = settings.rag_confessional_k
     if biblical_k is None:
@@ -79,19 +80,24 @@ def retrieve_context(
         for meta in bib_metas:
             verse_id = meta.get("verse_id")
             if verse_id is not None:
-                scripture_data = db_lookup_func(db_engine, verse_id)
-                if scripture_data:
-                    book_name = meta.get("book_name", "Unknown Book")
-                    chapter = meta.get("chapter", 0)
-                    verse_number = meta.get("verse_number", 0)
-                    scriptures.append({
-                        "citation": f"{book_name} {chapter}:{verse_number}",
-                        "translations": dict(scripture_data),
-                        "book_name": book_name,
-                        "chapter": chapter,
-                        "verse_number": verse_number,
-                        "address_code": meta.get("address_code")
-                    })
+                if db_lookup_func is not None:
+                    # Test injection path: db_lookup_func returns a string directly
+                    cached_text = db_lookup_func(db_engine, verse_id)
+                else:
+                    cached_text = fetch_single_translation(db_engine, verse_id, primary_translation)
+                book_name = meta.get("book_name", "Unknown Book")
+                chapter = meta.get("chapter", 0)
+                verse_number = meta.get("verse_number", 0)
+                scriptures.append({
+                    "citation": f"{book_name} {chapter}:{verse_number}",
+                    "verse_id": int(verse_id),
+                    "primary_translation": primary_translation,
+                    "cached_text": cached_text,
+                    "book_name": book_name,
+                    "chapter": chapter,
+                    "verse_number": verse_number,
+                    "address_code": meta.get("address_code")
+                })
                     
     except Exception as e:
         logger.error("Failed to retrieve context for query %r: %s", query, e, exc_info=True)
