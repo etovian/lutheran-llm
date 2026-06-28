@@ -233,7 +233,8 @@ def run_orchestrator(
             query, 
             embed_model,
             confessional_k=confessional_k,
-            biblical_k=biblical_k
+            biblical_k=biblical_k,
+            primary_translation=primary_translation
         )
         formatted_ctx = format_llm_context(retrieved_ctx)
         
@@ -244,6 +245,7 @@ def run_orchestrator(
             HumanMessage(content=query)
         ]
         
+        # Invoke the LLM
         response = llm.invoke(messages)
         response_content = response.content if hasattr(response, "content") else str(response)
         
@@ -252,7 +254,7 @@ def run_orchestrator(
             summary = response_content.split("<details>")[0].strip()
             
         # Programmatically construct and append deep-dive details
-        details_html = format_deep_dive_details(retrieved_ctx, primary_translation)
+        details_html = format_deep_dive_details(retrieved_ctx, primary_translation, db_engine=db_engine)
         full_res = f"{summary}\n\n{details_html}"
         return OrchestratorResponse(full_res, summary=summary, retrieved_ctx=retrieved_ctx)
         

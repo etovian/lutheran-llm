@@ -229,7 +229,7 @@ for message in st.session_state.messages:
         else:
             if isinstance(message, dict) and "retrieved_ctx" in message:
                 st.markdown(message["summary"])
-                details_html = format_deep_dive_details(message["retrieved_ctx"], selected_version)
+                details_html = format_deep_dive_details(message["retrieved_ctx"], selected_version, db_engine=db_engine)
                 st.markdown(details_html, unsafe_allow_html=True)
             else:
                 st.markdown(message.get("content", ""), unsafe_allow_html=True)
@@ -283,7 +283,7 @@ if query:
                     )
                     
                     st.markdown(response.summary)
-                    details_html = format_deep_dive_details(response.retrieved_ctx, selected_version)
+                    details_html = format_deep_dive_details(response.retrieved_ctx, selected_version, db_engine=db_engine)
                     st.markdown(details_html, unsafe_allow_html=True)
                     
                     st.session_state.messages.append({

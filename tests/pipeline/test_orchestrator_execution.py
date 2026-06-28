@@ -40,7 +40,7 @@ def test_run_orchestrator(mock_retrieve_context):
     
     mock_retrieve_context.assert_called_once_with(
         mock_chroma, mock_db, "How are we justified?", mock_embed_model,
-        confessional_k=None, biblical_k=None
+        confessional_k=None, biblical_k=None, primary_translation="WEB"
     )
     
     # Verify LLM invoke was called with SystemMessage (containing context) and HumanMessage
