@@ -180,3 +180,27 @@ def test_retrieve_context_multiple_citations():
     assert ctx["scriptures"][1]["cached_text"] == "Second verse WEB text"
     assert "translations" not in ctx["scriptures"][1]
     assert "lexicon" not in ctx["scriptures"][1]
+
+
+def test_retrieve_context_respects_primary_translation():
+    """retrieve_context passes primary_translation to fetch_single_translation."""
+    from unittest.mock import patch, MagicMock
+    from pipeline.orchestrator import retrieve_context
+
+    mock_chroma = MagicMock()
+    mock_db = MagicMock()
+    mock_embed = MagicMock()
+    mock_embed.encode.return_value = MagicMock(tolist=lambda: [0.1, 0.2])
+
+    mock_chroma.get_collection.return_value.query.return_value = {
+        "documents": [[]],
+        "metadatas": [[{"verse_id": 42, "book_name": "John", "chapter": 3, "verse_number": 16, "address_code": "JHN 3:16"}]]
+    }
+
+    with patch("pipeline.orchestrator.fetch_single_translation", return_value="Car Dieu a tant aimé") as mock_fetch:
+        result = retrieve_context(mock_chroma, mock_db, "query", mock_embed, primary_translation="KJV")
+
+    mock_fetch.assert_called_once_with(mock_db, 42, "KJV")
+    assert result["scriptures"][0]["primary_translation"] == "KJV"
+    assert result["scriptures"][0]["cached_text"] == "Car Dieu a tant aimé"
+

@@ -10,7 +10,7 @@ class OrchestratorResponse(str):
         obj.summary = summary if summary is not None else ""
         obj.retrieved_ctx = retrieved_ctx if retrieved_ctx is not None else {}
         return obj
-from database.queries import fetch_parallel_translations, fetch_single_translation
+from database.queries import fetch_single_translation
 from langchain_core.messages import SystemMessage, HumanMessage
 from pipeline.prompt import SYSTEM_PROMPT
 from pipeline.guardrails import detect_pastoral_crisis, get_redirection_response
