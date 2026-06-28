@@ -87,3 +87,47 @@ def test_ensure_model_loaded_success(mock_post, mock_get):
     assert success is True
     assert "ready" in msg
     mock_post.assert_not_called()
+
+
+@patch("requests.post")
+def test_groq_chat_model_invoke_success(mock_post):
+    from pipeline.ollama_llm import GroqChatModel
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "choices": [{
+            "message": {
+                "content": "Comforting Lutheran guidance from Groq."
+            }
+        }]
+    }
+    mock_post.return_value = mock_response
+
+    model = GroqChatModel(api_key="gsk_key123", model_name="llama3-8b-8192")
+    messages = [
+        SystemMessage(content="You are a Lutheran assistant."),
+        HumanMessage(content="What is grace?")
+    ]
+
+    result = model.invoke(messages)
+
+    assert isinstance(result, AIMessage)
+    assert result.content == "Comforting Lutheran guidance from Groq."
+
+    mock_post.assert_called_once_with(
+        "https://api.groq.com/openai/v1/chat/completions",
+        headers={
+            "Authorization": "Bearer gsk_key123",
+            "Content-Type": "application/json"
+        },
+        json={
+            "model": "llama3-8b-8192",
+            "messages": [
+                {"role": "system", "content": "You are a Lutheran assistant."},
+                {"role": "user", "content": "What is grace?"}
+            ],
+            "temperature": 0.0,
+            "max_tokens": 512
+        },
+        timeout=60
+    )
+

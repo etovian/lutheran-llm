@@ -215,3 +215,51 @@ def ensure_model_loaded(base_url: str = "http://localhost:11434", model_name: st
     except Exception as e:
         logger.error(f"Failed to verify or pull model '{model_name}': {e}")
         return False, str(e)
+
+
+class GroqChatModel:
+    """
+    A custom LangChain-compatible wrapper for the Groq serverless API.
+    """
+    def __init__(self, api_key: str, model_name: str = "llama3-8b-8192", temperature: float = 0.0, max_tokens: int = 512):
+        self.api_key = api_key
+        self.model_name = model_name
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+
+    def invoke(self, messages: list) -> AIMessage:
+        formatted_messages = []
+        for msg in messages:
+            if hasattr(msg, "type"):
+                role = "system" if msg.type == "system" else "user"
+            else:
+                role = "user"
+            content = msg.content if hasattr(msg, "content") else str(msg)
+            formatted_messages.append({
+                "role": role,
+                "content": content
+            })
+
+        try:
+            response = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": self.model_name,
+                    "messages": formatted_messages,
+                    "temperature": self.temperature,
+                    "max_tokens": self.max_tokens
+                },
+                timeout=60
+            )
+            response.raise_for_status()
+            res_json = response.json()
+            choices = res_json.get("choices", [])
+            content = choices[0].get("message", {}).get("content", "") if choices else ""
+            return AIMessage(content=content)
+        except Exception as e:
+            raise RuntimeError(f"Groq API invocation failed: {e}")
+
