@@ -6,3 +6,9 @@ def test_system_prompt_hermeneutical_lens():
     assert "norma normans" in SYSTEM_PROMPT
     assert "norma normata" in SYSTEM_PROMPT
     assert "Law/Gospel distinction" in SYSTEM_PROMPT
+
+
+def test_prompt_contains_citations_instruction():
+    assert "<citations>" in SYSTEM_PROMPT
+    assert "Ref-" in SYSTEM_PROMPT
+
