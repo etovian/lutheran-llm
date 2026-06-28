@@ -41,7 +41,7 @@ def test_ollama_chat_model_invoke_success(mock_post):
                 "num_ctx": 1024
             }
         },
-        timeout=300
+        timeout=600
     )
 
 @patch("requests.post")
