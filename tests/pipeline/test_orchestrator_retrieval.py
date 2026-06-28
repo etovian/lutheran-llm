@@ -224,7 +224,7 @@ def test_retrieve_context_filters_by_distance_threshold():
             {"verse_id": 1, "book_name": "Romans", "chapter": 3, "verse_number": 28, "address_code": "ROM_3_28"},
             {"verse_id": 2, "book_name": "Ephesians", "chapter": 2, "verse_number": 8, "address_code": "EPH_2_8"}
         ]],
-        "distances": [[0.5, 1.5]]  # 0.5 is <= 1.2 (keeps it), 1.5 is > 1.2 (filters it)
+        "distances": [[0.5, 1.5]]  # 0.5 is <= 1.0 (keeps it), 1.5 is > 1.0 (filters it)
     }
     
     mock_chroma.get_collection.side_effect = lambda name: (
@@ -239,7 +239,7 @@ def test_retrieve_context_filters_by_distance_threshold():
         db_lookup_func=lambda eng, vid: f"Text {vid}"
     )
     
-    # Only verse 1 should be returned because distance 1.5 exceeds the default 1.2 threshold
+    # Only verse 1 should be returned because distance 1.5 exceeds the default 1.0 threshold
     assert len(ctx["scriptures"]) == 1
     assert ctx["scriptures"][0]["verse_id"] == 1
     assert ctx["scriptures"][0]["distance"] == 0.5

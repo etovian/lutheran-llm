@@ -99,7 +99,7 @@ def test_settings_relevancy_threshold(monkeypatch):
     monkeypatch.delenv("RAG_BIBLICAL_DISTANCE_THRESHOLD", raising=False)
     settings_default = Settings(_env_file=None)
     assert settings_default.rag_biblical_max_pool == 50
-    assert settings_default.rag_biblical_distance_threshold == 1.2
+    assert settings_default.rag_biblical_distance_threshold == 1.0
 
     # Test env overrides
     monkeypatch.setenv("RAG_BIBLICAL_MAX_POOL", "25")
