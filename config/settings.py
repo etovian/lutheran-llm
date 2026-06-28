@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     ollama_num_ctx: int = 2048
     rag_confessional_k: int = 5
     rag_biblical_k: int = 10
+    rag_biblical_max_pool: int = 50
+    rag_biblical_distance_threshold: float = 1.2
     llm_provider: Literal["ollama", "groq"] = "ollama"
     groq_api_key: Optional[str] = None
     groq_model: str = "llama3-8b-8192"

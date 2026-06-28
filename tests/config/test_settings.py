@@ -92,3 +92,21 @@ def test_settings_groq_overrides(monkeypatch):
     assert settings.groq_max_tokens == 1024
 
 
+def test_settings_relevancy_threshold(monkeypatch):
+    """Test that new relevancy threshold settings default and override properly."""
+    # Test defaults
+    monkeypatch.delenv("RAG_BIBLICAL_MAX_POOL", raising=False)
+    monkeypatch.delenv("RAG_BIBLICAL_DISTANCE_THRESHOLD", raising=False)
+    settings_default = Settings(_env_file=None)
+    assert settings_default.rag_biblical_max_pool == 50
+    assert settings_default.rag_biblical_distance_threshold == 1.2
+
+    # Test env overrides
+    monkeypatch.setenv("RAG_BIBLICAL_MAX_POOL", "25")
+    monkeypatch.setenv("RAG_BIBLICAL_DISTANCE_THRESHOLD", "0.8")
+    settings_override = Settings(_env_file=None)
+    assert settings_override.rag_biblical_max_pool == 25
+    assert settings_override.rag_biblical_distance_threshold == 0.8
+
+
+
