@@ -18,6 +18,28 @@ from pipeline.guardrails import detect_pastoral_crisis, get_redirection_response
 logger = logging.getLogger(__name__)
 settings = Settings()
 
+BIBLE_BOOKS_CANONICAL = [
+    # Old Testament
+    "Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy",
+    "Joshua", "Judges", "Ruth", "1 Samuel", "2 Samuel",
+    "1 Kings", "2 Kings", "1 Chronicles", "2 Chronicles",
+    "Ezra", "Nehemiah", "Esther", "Job", "Psalms",
+    "Proverbs", "Ecclesiastes", "Song of Solomon", "Isaiah",
+    "Jeremiah", "Lamentations", "Ezekiel", "Daniel",
+    "Hosea", "Joel", "Amos", "Obadiah", "Jonah",
+    "Micah", "Nahum", "Habakkuk", "Zephaniah", "Haggai",
+    "Zechariah", "Malachi",
+    # New Testament
+    "Matthew", "Mark", "Luke", "John", "Acts", "Romans",
+    "1 Corinthians", "2 Corinthians", "Galatians", "Ephesians",
+    "Philippians", "Colossians", "1 Thessalonians", "2 Thessalonians",
+    "1 Timothy", "2 Timothy", "Titus", "Philemon", "Hebrews",
+    "James", "1 Peter", "2 Peter", "1 John", "2 John", "3 John",
+    "Jude", "Revelation of John"
+]
+
+BOOK_TO_INDEX = {book: idx for idx, book in enumerate(BIBLE_BOOKS_CANONICAL)}
+
 def retrieve_context(
     chroma_client: Any,
     db_engine: Any,
@@ -101,10 +123,15 @@ def retrieve_context(
                     "address_code": meta.get("address_code"),
                     "distance": dist
                 })
+        
+        # Sort scriptures in canonical order
+        scriptures.sort(key=lambda s: (BOOK_TO_INDEX.get(s["book_name"], 999), s["chapter"], s["verse_number"]))
+        
         logger.info(
-            "Retrieved %d biblical passages; %d passed distance threshold <= %f",
+            "Retrieved %d biblical passages; %d passed distance threshold <= %f and sorted canonically",
             len(bib_distances), len(scriptures), settings.rag_biblical_distance_threshold
         )
+
                     
     except Exception as e:
         logger.error("Failed to retrieve context for query %r: %s", query, e, exc_info=True)

@@ -245,3 +245,57 @@ def test_retrieve_context_filters_by_distance_threshold():
     assert ctx["scriptures"][0]["distance"] == 0.5
 
 
+def test_retrieve_context_canonical_sorting():
+    """Verify that retrieved scriptures are sorted in canonical order regardless of query return order."""
+    mock_chroma = MagicMock()
+    mock_db = MagicMock()
+    mock_embed_model = MagicMock()
+    mock_embed_model.encode.return_value.tolist.return_value = [0.1, 0.2, 0.3]
+    
+    mock_conf_collection = MagicMock()
+    mock_conf_collection.query.return_value = {"documents": [[]], "metadatas": [[]]}
+    
+    mock_bib_collection = MagicMock()
+    # Unordered return from vector store
+    mock_bib_collection.query.return_value = {
+        "documents": [["Eph 2:8", "Rom 3:28", "Rom 2:10", "Gen 1:2", "Gen 1:1"]],
+        "metadatas": [[
+            {"verse_id": 3, "address_code": "EPH_2_8", "book_name": "Ephesians", "chapter": 2, "verse_number": 8},
+            {"verse_id": 2, "address_code": "ROM_3_28", "book_name": "Romans", "chapter": 3, "verse_number": 28},
+            {"verse_id": 1, "address_code": "ROM_2_10", "book_name": "Romans", "chapter": 2, "verse_number": 10},
+            {"verse_id": 5, "address_code": "GEN_1_2", "book_name": "Genesis", "chapter": 1, "verse_number": 2},
+            {"verse_id": 4, "address_code": "GEN_1_1", "book_name": "Genesis", "chapter": 1, "verse_number": 1}
+        ]],
+        "distances": [[0.1, 0.2, 0.3, 0.4, 0.5]]
+    }
+    
+    mock_chroma.get_collection.side_effect = lambda name: (
+        mock_conf_collection if name == "confessional_collection" else mock_bib_collection
+    )
+    
+    ctx = retrieve_context(
+        chroma_client=mock_chroma,
+        db_engine=mock_db,
+        query="test query",
+        embed_model=mock_embed_model,
+        db_lookup_func=lambda eng, vid: f"Verse {vid} Text"
+    )
+    
+    # Expected order:
+    # 1. Genesis 1:1
+    # 2. Genesis 1:2
+    # 3. Romans 2:10
+    # 4. Romans 3:28
+    # 5. Ephesians 2:8
+    expected = [
+        "Genesis 1:1",
+        "Genesis 1:2",
+        "Romans 2:10",
+        "Romans 3:28",
+        "Ephesians 2:8"
+    ]
+    citations = [s["citation"] for s in ctx["scriptures"]]
+    assert citations == expected
+
+
+
