@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     ollama_num_predict: int = 512
     ollama_temperature: float = 0.0
     ollama_num_ctx: int = 2048
-    rag_confessional_k: int = 2
+    rag_confessional_k: int = 5
     rag_biblical_k: int = 10
     llm_provider: Literal["ollama", "groq"] = "ollama"
     groq_api_key: Optional[str] = None

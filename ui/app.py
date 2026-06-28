@@ -63,6 +63,25 @@ st.markdown(
         border-color: #F59E0B;
     }
 
+    /* Style for nested Book of Concord details */
+    details.boc-detail {
+        background-color: transparent !important;
+        border: none !important;
+        border-left: 2px solid #F59E0B !important;
+        border-radius: 0px !important;
+        padding: 0.3rem 0.6rem !important;
+        margin-top: 0.5rem !important;
+        margin-bottom: 0.5rem !important;
+    }
+    details.boc-detail:hover {
+        border-left-color: #EF4444 !important;
+    }
+    details.boc-detail summary {
+        color: #E2E8F0 !important;
+        font-size: 0.95rem !important;
+        font-weight: 500 !important;
+    }
+
     summary {
         font-weight: 600;
         font-size: 1.05rem;

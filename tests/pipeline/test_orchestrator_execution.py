@@ -190,3 +190,16 @@ def test_run_orchestrator_multiple_citations(mock_retrieve_context):
     assert "Original Language Word Analysis" not in res
     assert "</details>" in res
 
+
+def test_format_deep_dive_details_collapsible():
+    """Verify that format_deep_dive_details wraps confessional chunks in collapsible details tags."""
+    ctx = {
+        "confessional": [{"text": "Freely justified by grace", "citation": "Apology IV, 1"}],
+        "scriptures": []
+    }
+    html_output = format_deep_dive_details(ctx, primary_translation="WEB", db_engine=None)
+    assert '<details class="boc-detail"' in html_output
+    assert '<summary style="font-weight: 500; font-size: 0.95rem; color: #E2E8F0; cursor: pointer;">Apology IV, 1</summary>' in html_output
+    assert '"Freely justified by grace"' in html_output
+
+

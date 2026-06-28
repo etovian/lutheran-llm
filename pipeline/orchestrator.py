@@ -162,7 +162,12 @@ def format_deep_dive_details(
         for chunk in confessional:
             citation = html.escape(chunk.get("citation", "Book of Concord"))
             text_val = html.escape(chunk.get("text", ""))
-            lines.append(f"<p><strong>{citation}</strong>: <em>\"{text_val}\"</em></p>")
+            lines.append(
+                f'<details class="boc-detail" style="margin-bottom: 0.6rem; margin-left: 0.5rem; border-left: 2px solid #F59E0B; padding: 0.3rem 0.6rem;">'
+                f'  <summary style="font-weight: 500; font-size: 0.95rem; color: #E2E8F0; cursor: pointer;">{citation}</summary>'
+                f'  <p style="margin-top: 0.4rem; font-style: italic; color: #94A3B8; font-size: 0.9rem;">"{text_val}"</p>'
+                f'</details>'
+            )
     else:
         lines.append("<p>No confessional citations found.</p>")
         
