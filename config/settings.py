@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
@@ -16,5 +16,8 @@ class Settings(BaseSettings):
     ollama_num_ctx: int = 2048
     rag_confessional_k: int = 2
     rag_biblical_k: int = 10
+    llm_provider: Literal["ollama", "groq"] = "ollama"
+    groq_api_key: Optional[str] = None
+    groq_model: str = "llama3-8b-8192"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")

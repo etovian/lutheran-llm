@@ -42,6 +42,10 @@ def test_settings_default_values(monkeypatch):
     monkeypatch.delenv("RAG_CONFESSIONAL_K", raising=False)
     monkeypatch.delenv("RAG_BIBLICAL_K", raising=False)
     
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("GROQ_MODEL", raising=False)
+    
     settings = Settings()
     assert settings.database_url == "postgresql+psycopg://user:password@localhost:5432/lutheran_db"
     assert settings.primary_search_version == "WEB"
@@ -53,6 +57,9 @@ def test_settings_default_values(monkeypatch):
     assert settings.ollama_num_ctx == 2048
     assert settings.rag_confessional_k == 2
     assert settings.rag_biblical_k == 10
+    assert settings.llm_provider == "ollama"
+    assert settings.groq_api_key is None
+    assert settings.groq_model == "llama3-8b-8192"
 
 
 def test_settings_rag_k_values(monkeypatch):
@@ -64,4 +71,18 @@ def test_settings_rag_k_values(monkeypatch):
     settings = Settings()
     assert settings.rag_confessional_k == 5
     assert settings.rag_biblical_k == 2
+
+
+def test_settings_groq_overrides(monkeypatch):
+    """
+    Test that Groq settings are loaded from environment variables.
+    """
+    monkeypatch.setenv("LLM_PROVIDER", "groq")
+    monkeypatch.setenv("GROQ_API_KEY", "gsk_test123")
+    monkeypatch.setenv("GROQ_MODEL", "mixtral-8x7b-32768")
+    settings = Settings()
+    assert settings.llm_provider == "groq"
+    assert settings.groq_api_key == "gsk_test123"
+    assert settings.groq_model == "mixtral-8x7b-32768"
+
 
